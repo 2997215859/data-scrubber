@@ -1,0 +1,5 @@
+{
+  "src_dir": "/Users/bytedance/workspace/code/data-scrubber/testdata/MDL",
+  "dst_dir": "/Users/bytedance/workspace/code/data-scrubber/testdata/dst",
+  "date_list": ["20240404", "20240403"]
+}
