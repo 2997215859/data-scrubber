@@ -664,7 +664,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
 	// 读取和处理深圳数据
-	szRawTradeList, err := ManualReadSzRawTrade(szFilepath)
+	szRawTradeList, err := ReadSzRawTrade(szFilepath)
 	if err != nil {
 		return errorx.NewError("ReadSzRawTrade(%s) error: %s", shFilepath, err)
 	}
@@ -677,7 +677,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	logger.Info("Convert Sz Raw Trade End")
 
 	// 读取和处理上海数据
-	shRawTradeList, err := ManualReadShRawTrade(shFilepath)
+	shRawTradeList, err := ReadShRawTrade(shFilepath)
 	if err != nil {
 		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
 	}
