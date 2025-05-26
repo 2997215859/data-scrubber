@@ -2,6 +2,7 @@ package service
 
 import (
 	"archive/zip"
+	"bufio"
 	"data-scrubber/biz/model"
 	"encoding/csv"
 	"fmt"
@@ -15,7 +16,23 @@ import (
 	"sync"
 )
 
-func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
+type SzRawTrade struct {
+	ChannelNo        int64
+	ApplSeqNum       int64
+	MDStreamID       string
+	BidApplSeqNum    int64
+	OfferApplSeqNum  int64
+	SecurityID       string
+	SecurityIDSource int64
+	LastPx           float64
+	LastQty          int64
+	ExecType         int
+	TransactTime     string
+	LocalTime        string
+	SeqNo            int64
+}
+
+func ManualReadSzRawTrade(filepath string) ([]*SzRawTrade, error) {
 	// 打开ZIP文件
 	zipReader, err := zip.OpenReader(filepath)
 	if err != nil {
@@ -38,14 +55,18 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 	}
 	defer rc.Close()
 
-	// 创建CSV读取器
-	csvReader := csv.NewReader(rc)
+	// 创建文本读取器
+	reader := bufio.NewReader(rc)
 
 	// 读取标题行
-	headers, err := csvReader.Read()
+	headerLine, err := reader.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
+		return nil, fmt.Errorf("读取标题行失败: %v", err)
 	}
+	headerLine = strings.TrimSpace(headerLine)
+
+	// 处理标题行，去除行末可能的逗号
+	headers := splitLine(headerLine)
 
 	// 映射标题到列索引
 	headerIndex := make(map[string]int)
@@ -67,88 +88,114 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 	}
 
 	// 存储解析结果
-	var trades []*model.SzRawTrade
+	var trades []*SzRawTrade
+	lineNum := 2 // 从第2行开始(标题是第1行)
 
-	// 读取剩余行数据
-	lines, err := csvReader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("读取CSV数据行失败: %v", err)
-	}
+	// 逐行读取数据
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, fmt.Errorf("读取数据行失败: %v", err)
+		}
 
-	// 解析每一行数据
-	for i, line := range lines {
+		// 处理当前行，去除行末可能的逗号
+		fields := splitLine(strings.TrimSpace(line))
+
 		// 确保每行有足够的字段
-		if len(line) < len(requiredHeaders) {
-			log.Printf("警告: 第 %d 行字段数量不足，跳过该行", i+2) // +2 是因为标题行和索引从0开始
+		if len(fields) < len(requiredHeaders) {
+			log.Printf("警告: 第 %d 行字段数量不足，跳过该行", lineNum)
+			lineNum++
 			continue
 		}
 
-		// 创建新的model.SzRawTrade实例
-		trade := &model.SzRawTrade{}
+		// 创建新的SzRawTrade实例
+		trade := &SzRawTrade{}
 
 		// 使用标题映射来解析各字段
-		if err := parseInt64Field(line, headerIndex, "ChannelNo", &trade.ChannelNo); err != nil {
-			log.Printf("警告: 第 %d 行 ChannelNo 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "ChannelNo", &trade.ChannelNo); err != nil {
+			log.Printf("警告: 第 %d 行 ChannelNo 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		if err := parseInt64Field(line, headerIndex, "ApplSeqNum", &trade.ApplSeqNum); err != nil {
-			log.Printf("警告: 第 %d 行 ApplSeqNum 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "ApplSeqNum", &trade.ApplSeqNum); err != nil {
+			log.Printf("警告: 第 %d 行 ApplSeqNum 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		trade.MDStreamID = strings.TrimSpace(line[headerIndex["MDStreamID"]])
+		trade.MDStreamID = strings.TrimSpace(fields[headerIndex["MDStreamID"]])
 
-		if err := parseInt64Field(line, headerIndex, "BidApplSeqNum", &trade.BidApplSeqNum); err != nil {
-			log.Printf("警告: 第 %d 行 BidApplSeqNum 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "BidApplSeqNum", &trade.BidApplSeqNum); err != nil {
+			log.Printf("警告: 第 %d 行 BidApplSeqNum 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		if err := parseInt64Field(line, headerIndex, "OfferApplSeqNum", &trade.OfferApplSeqNum); err != nil {
-			log.Printf("警告: 第 %d 行 OfferApplSeqNum 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "OfferApplSeqNum", &trade.OfferApplSeqNum); err != nil {
+			log.Printf("警告: 第 %d 行 OfferApplSeqNum 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		trade.SecurityID = strings.TrimSpace(line[headerIndex["SecurityID"]])
+		trade.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
 
-		if err := parseInt64Field(line, headerIndex, "SecurityIDSource", &trade.SecurityIDSource); err != nil {
-			log.Printf("警告: 第 %d 行 SecurityIDSource 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "SecurityIDSource", &trade.SecurityIDSource); err != nil {
+			log.Printf("警告: 第 %d 行 SecurityIDSource 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		if err := parseFloat64Field(line, headerIndex, "LastPx", &trade.LastPx); err != nil {
-			log.Printf("警告: 第 %d 行 LastPx 解析错误: %v，跳过该行", i+2, err)
+		if err := parseFloat64Field(fields, headerIndex, "LastPx", &trade.LastPx); err != nil {
+			log.Printf("警告: 第 %d 行 LastPx 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		if err := parseInt64Field(line, headerIndex, "LastQty", &trade.LastQty); err != nil {
-			log.Printf("警告: 第 %d 行 LastQty 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "LastQty", &trade.LastQty); err != nil {
+			log.Printf("警告: 第 %d 行 LastQty 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		if err := parseIntField(line, headerIndex, "ExecType", &trade.ExecType); err != nil {
-			log.Printf("警告: 第 %d 行 ExecType 解析错误: %v，跳过该行", i+2, err)
+		if err := parseIntField(fields, headerIndex, "ExecType", &trade.ExecType); err != nil {
+			log.Printf("警告: 第 %d 行 ExecType 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
-		trade.TransactTime = strings.TrimSpace(line[headerIndex["TransactTime"]])
-		trade.LocalTime = strings.TrimSpace(line[headerIndex["LocalTime"]])
+		trade.TransactTime = strings.TrimSpace(fields[headerIndex["TransactTime"]])
+		trade.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
 
-		if err := parseInt64Field(line, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
-			log.Printf("警告: 第 %d 行 SeqNo 解析错误: %v，跳过该行", i+2, err)
+		if err := parseInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
+			log.Printf("警告: 第 %d 行 SeqNo 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
 			continue
 		}
 
 		// 将解析成功的交易添加到结果列表
 		trades = append(trades, trade)
+		lineNum++
 	}
 
 	return trades, nil
 }
 
+// 自定义分割函数，处理行末多余的逗号
+func splitLine(line string) []string {
+	// 去除行末的逗号
+	if strings.HasSuffix(line, ",") {
+		line = strings.TrimSuffix(line, ",")
+	}
+	return strings.Split(line, ",")
+}
+
 // 辅助函数：解析int64类型字段
-func parseInt64Field(line []string, headerIndex map[string]int, fieldName string, target *int64) error {
-	valueStr := strings.TrimSpace(line[headerIndex[fieldName]])
+func parseInt64Field(fields []string, headerIndex map[string]int, fieldName string, target *int64) error {
+	valueStr := strings.TrimSpace(fields[headerIndex[fieldName]])
 	value, err := strconv.ParseInt(valueStr, 10, 64)
 	if err != nil {
 		return fmt.Errorf("解析 %s 失败: %v", fieldName, err)
@@ -158,8 +205,8 @@ func parseInt64Field(line []string, headerIndex map[string]int, fieldName string
 }
 
 // 辅助函数：解析float64类型字段
-func parseFloat64Field(line []string, headerIndex map[string]int, fieldName string, target *float64) error {
-	valueStr := strings.TrimSpace(line[headerIndex[fieldName]])
+func parseFloat64Field(fields []string, headerIndex map[string]int, fieldName string, target *float64) error {
+	valueStr := strings.TrimSpace(fields[headerIndex[fieldName]])
 	value, err := strconv.ParseFloat(valueStr, 64)
 	if err != nil {
 		return fmt.Errorf("解析 %s 失败: %v", fieldName, err)
@@ -169,8 +216,8 @@ func parseFloat64Field(line []string, headerIndex map[string]int, fieldName stri
 }
 
 // 辅助函数：解析int类型字段
-func parseIntField(line []string, headerIndex map[string]int, fieldName string, target *int) error {
-	valueStr := strings.TrimSpace(line[headerIndex[fieldName]])
+func parseIntField(fields []string, headerIndex map[string]int, fieldName string, target *int) error {
+	valueStr := strings.TrimSpace(fields[headerIndex[fieldName]])
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		return fmt.Errorf("解析 %s 失败: %v", fieldName, err)
