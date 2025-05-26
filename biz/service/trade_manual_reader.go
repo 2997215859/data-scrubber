@@ -3,7 +3,6 @@ package service
 import (
 	"archive/zip"
 	"bufio"
-	"bytes"
 	"data-scrubber/biz/model"
 	"encoding/csv"
 	"fmt"
@@ -430,20 +429,16 @@ func UnzipAndManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) 
 		return allTrades, nil
 	}
 }
+
 func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
-	// 读取整个ZIP文件到内存
-	zipData, err := os.ReadFile(filepath)
+	// 打开ZIP文件
+	zipReader, err := zip.OpenReader(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("读取ZIP文件失败: %v", err)
+		return nil, fmt.Errorf("打开ZIP文件失败: %v", err)
 	}
+	defer zipReader.Close()
 
-	// 创建zip.Reader（支持随机访问）
-	zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
-	if err != nil {
-		return nil, fmt.Errorf("解析ZIP文件失败: %v", err)
-	}
-
-	// 查找第一个CSV文件
+	// 查找第一个CSV文件（不限制必须只有一个文件，匹配第一个.csv即可）
 	var csvFile *zip.File
 	for _, f := range zipReader.File {
 		if strings.HasSuffix(strings.ToLower(f.Name), ".csv") {
@@ -456,224 +451,133 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 		return nil, fmt.Errorf("未找到CSV文件")
 	}
 
-	// 打开CSV文件（返回io.ReadSeeker，支持Seek操作）
-	csvReader, err := csvFile.Open()
+	// 打开ZIP中的CSV文件
+	rc, err := csvFile.Open()
 	if err != nil {
 		return nil, fmt.Errorf("打开CSV文件失败: %v", err)
 	}
-	defer csvReader.Close()
+	defer rc.Close()
 
-	// 读取标题行以获取列索引
-	headerReader := bufio.NewReader(csvReader)
-	headers, err := headerReader.ReadString('\n')
+	// 创建文本读取器
+	reader := bufio.NewReader(rc)
+
+	// 读取标题行
+	headerLine, err := reader.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
+		return nil, fmt.Errorf("读取标题行失败: %v", err)
 	}
-	headers = strings.TrimSpace(headers)
+	headerLine = strings.TrimSpace(headerLine)
 
-	// 处理标题行，去除行末可能的逗号
-	headerFields := splitLine(headers)
+	// 处理标题行，去除行末可能的逗号并分割字段
+	headers := splitLine(headerLine)
 
-	columnIndex := make(map[string]int, len(headerFields))
-	for i, header := range headerFields {
-		columnIndex[strings.TrimSpace(header)] = i
-	}
-
-	// 获取CSV文件的未压缩大小
-	fileSize := csvFile.UncompressedSize64
-	if fileSize == 0 {
-		return nil, fmt.Errorf("CSV文件大小为0")
+	// 映射标题到列索引
+	headerIndex := make(map[string]int)
+	for i, header := range headers {
+		headerIndex[strings.TrimSpace(header)] = i
 	}
 
-	// 确定每个工作线程处理的块大小
-	numWorkers := runtime.NumCPU() // 默认使用CPU核心数
-	logger.Info("numWorkers=%d", numWorkers)
+	// 定义SH数据所需的必填标题
+	requiredHeaders := []string{
+		"BizIndex", "Channel", "SecurityID", "TickTime", "Type",
+		"BuyOrderNO", "SellOrderNO", "Price", "Qty", "TradeMoney",
+		"TickBSFlag", "LocalTime", "SeqNo",
+	}
 
-	chunkSize := int64(fileSize) / int64(numWorkers)
-	if chunkSize < 1024*1024 { // 最小1MB块大小
-		chunkSize = 1024 * 1024
-		numWorkers = int(fileSize) / int(chunkSize)
-		if numWorkers == 0 {
-			numWorkers = 1
+	// 验证必填标题是否存在
+	for _, header := range requiredHeaders {
+		if _, exists := headerIndex[header]; !exists {
+			return nil, fmt.Errorf("CSV文件缺少必要标题: %s", header)
 		}
 	}
 
-	// 创建通道用于收集结果
-	resultChan := make(chan []*model.ShRawTrade, numWorkers)
-	errorChan := make(chan error, 1)
-	var wg sync.WaitGroup
+	// 存储解析结果
+	var trades []*model.ShRawTrade
+	lineNum := 2 // 标题行是第1行，数据从第2行开始
 
-	// 启动工作线程
-	for i := 0; i < numWorkers; i++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-
-			start := int64(workerID) * chunkSize
-			end := start + chunkSize
-			if end > int64(fileSize) {
-				end = int64(fileSize)
+	// 逐行读取数据行
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break // 正常结束
 			}
+			return nil, fmt.Errorf("读取第 %d 行失败: %v", lineNum, err)
+		}
 
-			// 创建独立的CSV读取器（支持Seek）
-			fileReader, err := csvFile.Open()
-			if err != nil {
-				errorChan <- fmt.Errorf("worker %d 打开CSV文件失败: %v", workerID, err)
-				return
-			}
-			defer fileReader.Close()
+		// 处理当前行：去除首尾空格、末尾逗号，并分割字段
+		fields := splitLine(strings.TrimSpace(line))
 
-			seeker, ok := fileReader.(io.ReadSeeker)
-			if !ok {
-				errorChan <- fmt.Errorf("worker %d 文件不支持Seek操作", workerID)
-				return
-			}
+		// 检查字段数量是否足够
+		if len(fields) < len(requiredHeaders) {
+			log.Printf("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), len(requiredHeaders))
+			lineNum++
+			continue
+		}
 
-			// 移动到块的起始位置
-			if workerID > 0 {
-				// 找到下一行的开始位置
-				if _, err := seeker.Seek(start, 0); err != nil {
-					errorChan <- fmt.Errorf("worker %d 定位失败: %v", workerID, err)
-					return
-				}
+		// 创建新的ShRawTrade实例
+		trade := &model.ShRawTrade{}
 
-				buf := make([]byte, 1)
-				for {
-					n, err := seeker.Read(buf)
-					if n == 0 || err != nil {
-						break // 到达文件末尾
-					}
-					if buf[0] == '\n' {
-						break // 找到行首
-					}
-				}
+		// 解析各字段（使用标题索引，带错误处理）
+		if err := parseInt64Field(fields, headerIndex, "BizIndex", &trade.BizIndex); err != nil {
+			log.Printf("警告: 第 %d 行 BizIndex 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-				start, _ = seeker.Seek(0, 1) // 更新起始位置到下一行的开始
-			}
+		if err := parseInt64Field(fields, headerIndex, "Channel", &trade.Channel); err != nil {
+			log.Printf("警告: 第 %d 行 Channel 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-			// 创建CSV阅读器
-			reader := csv.NewReader(seeker)
-			reader.LazyQuotes = true
+		trade.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
+		trade.TickTime = strings.TrimSpace(fields[headerIndex["TickTime"]])
+		trade.Type = strings.TrimSpace(fields[headerIndex["Type"]])
 
-			// 如果不是第一个工作线程，跳过标题行
-			if workerID == 0 {
-				if _, err := reader.Read(); err != nil { // 跳过标题行
-					errorChan <- fmt.Errorf("worker %d 读取标题行失败: %v", workerID, err)
-					return
-				}
-			}
+		if err := parseInt64Field(fields, headerIndex, "BuyOrderNO", &trade.BuyOrderNo); err != nil {
+			log.Printf("警告: 第 %d 行 BuyOrderNO 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-			// 使用带缓冲的切片
-			trades := make([]*model.ShRawTrade, 0, 10000)
+		if err := parseInt64Field(fields, headerIndex, "SellOrderNO", &trade.SellOrderNo); err != nil {
+			log.Printf("警告: 第 %d 行 SellOrderNO 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-			// 读取块内的所有记录
-			for {
-				record, err := reader.Read()
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					errorChan <- fmt.Errorf("worker %d 解析行失败: %v", workerID, err)
-					return
-				}
+		if err := parseFloat64Field(fields, headerIndex, "Price", &trade.Price); err != nil {
+			log.Printf("警告: 第 %d 行 Price 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-				// 检查是否超出块边界
-				pos, _ := seeker.Seek(0, 1)
-				if pos > end && workerID != numWorkers-1 {
-					break // 最后一个worker可以读取到文件末尾
-				}
+		if err := parseInt64Field(fields, headerIndex, "Qty", &trade.Qty); err != nil {
+			log.Printf("警告: 第 %d 行 Qty 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-				// 解析记录
-				trade := &model.ShRawTrade{}
+		if err := parseFloat64Field(fields, headerIndex, "TradeMoney", &trade.TradeMoney); err != nil {
+			log.Printf("警告: 第 %d 行 TradeMoney 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-				if idx, exists := columnIndex["BizIndex"]; exists {
-					if trade.BizIndex, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
-						logger.Warn("worker %d 解析BizIndex失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["Channel"]; exists {
-					if trade.Channel, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
-						logger.Warn("worker %d 解析Channel失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["SecurityID"]; exists {
-					trade.SecurityID = record[idx]
-				}
-				if idx, exists := columnIndex["TickTime"]; exists {
-					trade.TickTime = record[idx]
-				}
-				if idx, exists := columnIndex["Type"]; exists {
-					trade.Type = record[idx]
-				}
-				if idx, exists := columnIndex["BuyOrderNO"]; exists {
-					if trade.BuyOrderNo, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
-						logger.Warn("worker %d 解析BuyOrderNO失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["SellOrderNO"]; exists {
-					if trade.SellOrderNo, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
-						logger.Warn("worker %d 解析SellOrderNO失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["Price"]; exists {
-					if trade.Price, err = strconv.ParseFloat(record[idx], 64); err != nil {
-						logger.Warn("worker %d 解析Price失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["Qty"]; exists {
-					if trade.Qty, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
-						logger.Warn("worker %d 解析Qty失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["TradeMoney"]; exists {
-					if trade.TradeMoney, err = strconv.ParseFloat(record[idx], 64); err != nil {
-						logger.Warn("worker %d 解析TradeMoney失败: %v", workerID, err)
-					}
-				}
-				if idx, exists := columnIndex["TickBSFlag"]; exists {
-					trade.TickBSFlag = record[idx]
-				}
-				if idx, exists := columnIndex["LocalTime"]; exists {
-					trade.LocalTime = record[idx]
-				}
-				if idx, exists := columnIndex["SeqNo"]; exists {
-					if trade.SeqNo, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
-						logger.Warn("worker %d 解析SeqNo失败: %v", workerID, err)
-					}
-				}
+		trade.TickBSFlag = strings.TrimSpace(fields[headerIndex["TickBSFlag"]])
+		trade.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
 
-				trades = append(trades, trade)
-			}
+		if err := parseInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
+			log.Printf("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
 
-			resultChan <- trades
-		}(i)
+		// 添加到结果列表
+		trades = append(trades, trade)
+		lineNum++
 	}
 
-	// 等待所有工作线程完成并收集结果
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	// 合并结果
-	var allTrades []*model.ShRawTrade
-	for trades := range resultChan {
-		allTrades = append(allTrades, trades...)
-	}
-
-	// 检查错误
-	select {
-	case err := <-errorChan:
-		return nil, err
-	default:
-		return allTrades, nil
-	}
+	return trades, nil
 }
-
-// 辅助函数：分割行并处理行末逗号
-//func splitLine(line string) []string {
-//	if strings.HasSuffix(line, ",") {
-//		line = strings.TrimSuffix(line, ",")
-//	}
-//	return strings.Split(line, ",")
-//}
