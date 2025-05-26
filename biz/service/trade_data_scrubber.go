@@ -86,6 +86,8 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 
 	// 确定每个工作线程处理的块大小
 	numWorkers := runtime.NumCPU() // 默认使用CPU核心数
+	logger.Info("numWorkers=%d", numWorkers)
+
 	chunkSize := fileSize / int64(numWorkers)
 	if chunkSize < 1024*1024 { // 最小1MB块大小
 		chunkSize = 1024 * 1024
@@ -366,8 +368,10 @@ func ReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 	}
 	defer csvReader.Close()
 
+	trimmedReader := &streamingTrimCommaReader{src: csvReader}
+
 	list := make([]*model.SzRawTrade, 0)
-	if err := gocsv.Unmarshal(csvReader, &list); err != nil {
+	if err := gocsv.Unmarshal(trimmedReader, &list); err != nil {
 		return nil, errorx.NewError("unmarshal filepath(%s) error: %v", filepath, err)
 	}
 	return list, nil
@@ -443,7 +447,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
 	// 读取和处理上海数据
-	shRawTradeList, err := ManualReadShRawTrade(shFilepath)
+	shRawTradeList, err := ReadShRawTrade(shFilepath)
 	if err != nil {
 		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
 	}
