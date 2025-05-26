@@ -342,6 +342,223 @@ func ShRawTrade2TradeList(date string, rawList []*model.ShRawTrade) ([]*model.Tr
 
 // sz 处理
 
+func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
+	zipReader, err := zip.OpenReader(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("打开zip文件失败: %v", err)
+	}
+	defer zipReader.Close()
+
+	// 查找第一个CSV文件
+	var csvFile *zip.File
+	for _, f := range zipReader.File {
+		if strings.HasSuffix(strings.ToLower(f.Name), ".csv") {
+			csvFile = f
+			break
+		}
+	}
+
+	if csvFile == nil {
+		return nil, fmt.Errorf("未找到CSV文件")
+	}
+
+	// 创建临时文件用于解压
+	tmpfile, err := os.CreateTemp("", "sz_raw_trade_*.csv")
+	if err != nil {
+		return nil, fmt.Errorf("创建临时文件失败: %v", err)
+	}
+	tmpPath := tmpfile.Name()
+	defer os.Remove(tmpPath) // 清理临时文件
+	defer tmpfile.Close()
+
+	// 将ZIP中的CSV解压到临时文件
+	rc, err := csvFile.Open()
+	if err != nil {
+		return nil, fmt.Errorf("打开CSV文件失败: %v", err)
+	}
+	defer rc.Close()
+
+	_, err = io.Copy(tmpfile, rc)
+	if err != nil {
+		return nil, fmt.Errorf("解压CSV文件失败: %v", err)
+	}
+
+	// 获取文件信息和大小
+	fileInfo, err := tmpfile.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("获取文件信息失败: %v", err)
+	}
+	fileSize := fileInfo.Size()
+
+	// 读取标题行以获取列索引
+	tmpfile.Seek(0, 0)
+	reader := csv.NewReader(tmpfile)
+	headers, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
+	}
+
+	columnIndex := make(map[string]int, len(headers))
+	for i, header := range headers {
+		columnIndex[strings.TrimSpace(header)] = i
+	}
+
+	// 确定每个工作线程处理的块大小
+	numWorkers := runtime.NumCPU() // 默认使用CPU核心数
+	chunkSize := fileSize / int64(numWorkers)
+	if chunkSize < 1024*1024 { // 最小1MB块大小
+		chunkSize = 1024 * 1024
+		numWorkers = int(fileSize / chunkSize)
+		if numWorkers == 0 {
+			numWorkers = 1
+		}
+	}
+
+	// 创建通道用于收集结果
+	resultChan := make(chan []*model.SzRawTrade, numWorkers)
+	errorChan := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	// 启动工作线程
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			start := int64(workerID) * chunkSize
+			end := start + chunkSize
+			if end > fileSize {
+				end = fileSize
+			}
+
+			// 打开文件的新句柄
+			file, err := os.Open(tmpPath)
+			if err != nil {
+				errorChan <- fmt.Errorf("worker %d 打开文件失败: %v", workerID, err)
+				return
+			}
+			defer file.Close()
+
+			// 移动到块的起始位置
+			if workerID > 0 {
+				// 找到下一行的开始位置
+				file.Seek(start, 0)
+				buf := make([]byte, 1)
+				for {
+					_, err := file.Read(buf)
+					if err != nil || buf[0] == '\n' {
+						break
+					}
+				}
+				start, _ = file.Seek(0, 1) // 更新起始位置到下一行的开始
+			}
+
+			// 创建CSV阅读器
+			reader := csv.NewReader(file)
+			reader.LazyQuotes = true
+
+			// 如果不是第一个工作线程，跳过标题行
+			if workerID > 0 {
+				reader.Read() // 跳过标题行
+			}
+
+			// 使用带缓冲的切片
+			trades := make([]*model.SzRawTrade, 0, 10000)
+
+			// 读取块内的所有记录
+			for {
+				record, err := reader.Read()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					errorChan <- fmt.Errorf("worker %d 读取记录失败: %v", workerID, err)
+					return
+				}
+
+				// 处理深圳CSV文件每行末尾多余的逗号
+				if len(record) > 0 && strings.TrimSpace(record[len(record)-1]) == "" {
+					record = record[:len(record)-1] // 移除末尾空字段
+				}
+
+				// 检查是否超出块边界
+				pos, _ := file.Seek(0, 1)
+				if pos > end {
+					break
+				}
+
+				// 解析记录
+				trade := &model.SzRawTrade{}
+
+				if idx, exists := columnIndex["ChannelNo"]; exists && idx < len(record) {
+					trade.ChannelNo, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+				if idx, exists := columnIndex["ApplSeqNum"]; exists && idx < len(record) {
+					trade.ApplSeqNum, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+				if idx, exists := columnIndex["MDStreamID"]; exists && idx < len(record) {
+					trade.MDStreamID = strings.TrimSpace(record[idx])
+				}
+				if idx, exists := columnIndex["BidApplSeqNum"]; exists && idx < len(record) {
+					trade.BidApplSeqNum, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+				if idx, exists := columnIndex["OfferApplSeqNum"]; exists && idx < len(record) {
+					trade.OfferApplSeqNum, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+				if idx, exists := columnIndex["SecurityID"]; exists && idx < len(record) {
+					trade.SecurityID = strings.TrimSpace(record[idx])
+				}
+				if idx, exists := columnIndex["SecurityIDSource"]; exists && idx < len(record) {
+					trade.SecurityIDSource, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+				if idx, exists := columnIndex["LastPx"]; exists && idx < len(record) {
+					trade.LastPx, _ = strconv.ParseFloat(strings.TrimSpace(record[idx]), 64)
+				}
+				if idx, exists := columnIndex["LastQty"]; exists && idx < len(record) {
+					trade.LastQty, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+				if idx, exists := columnIndex["ExecType"]; exists && idx < len(record) {
+					execType, _ := strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 32)
+					trade.ExecType = int(execType)
+				}
+				if idx, exists := columnIndex["TransactTime"]; exists && idx < len(record) {
+					trade.TransactTime = strings.TrimSpace(record[idx])
+				}
+				if idx, exists := columnIndex["LocalTime"]; exists && idx < len(record) {
+					trade.LocalTime = strings.TrimSpace(record[idx])
+				}
+				if idx, exists := columnIndex["SeqNo"]; exists && idx < len(record) {
+					trade.SeqNo, _ = strconv.ParseInt(strings.TrimSpace(record[idx]), 10, 64)
+				}
+
+				trades = append(trades, trade)
+			}
+
+			resultChan <- trades
+		}(i)
+	}
+
+	// 等待所有工作线程完成并收集结果
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// 合并结果
+	var allTrades []*model.SzRawTrade
+	for trades := range resultChan {
+		allTrades = append(allTrades, trades...)
+	}
+
+	// 检查错误
+	select {
+	case err := <-errorChan:
+		return nil, err
+	default:
+		return allTrades, nil
+	}
+}
+
 func ReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
@@ -446,8 +663,19 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
+	// 读取和处理深圳数据
+	szRawTradeList, err := ManualReadSzRawTrade(szFilepath)
+	if err != nil {
+		return errorx.NewError("ReadSzRawTrade(%s) error: %s", shFilepath, err)
+	}
+	szTradeList, err := SzRawTrade2TradeList(date, szRawTradeList)
+	if err != nil {
+		return errorx.NewError("SzRawTrade2Trade(%s) error: %s", shFilepath, err)
+	}
+	logger.Info("Read Sz Raw Trade End")
+
 	// 读取和处理上海数据
-	shRawTradeList, err := ReadShRawTrade(shFilepath)
+	shRawTradeList, err := ManualReadShRawTrade(shFilepath)
 	if err != nil {
 		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
 	}
@@ -458,17 +686,6 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 		return errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
 	logger.Info("Convert Sh Raw Trade End")
-
-	// 读取和处理深圳数据
-	szRawTradeList, err := ReadSzRawTrade(szFilepath)
-	if err != nil {
-		return errorx.NewError("ReadSzRawTrade(%s) error: %s", shFilepath, err)
-	}
-	szTradeList, err := SzRawTrade2TradeList(date, szRawTradeList)
-	if err != nil {
-		return errorx.NewError("SzRawTrade2Trade(%s) error: %s", shFilepath, err)
-	}
-	logger.Info("Read Sz Raw Trade End")
 
 	// 排序
 	tradeList := SortRaw(shTradeList, szTradeList)
