@@ -22,107 +22,143 @@ import (
 // sh 处理
 
 func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
-	// 打开zip文件
 	zipReader, err := zip.OpenReader(filepath)
 	if err != nil {
 		return nil, fmt.Errorf("打开zip文件失败: %v", err)
 	}
 	defer zipReader.Close()
 
-	var trades []*model.ShRawTrade
+	// 快速查找第一个CSV文件，避免遍历所有文件
+	var csvFile *zip.File
+	for _, f := range zipReader.File {
+		if strings.HasSuffix(strings.ToLower(f.Name), ".csv") {
+			csvFile = f
+			break
+		}
+	}
 
-	// 遍历zip文件中的所有文件
-	for _, zipFile := range zipReader.File {
-		// 只处理CSV文件
-		if !strings.HasSuffix(strings.ToLower(zipFile.Name), ".csv") {
-			continue
+	if csvFile == nil {
+		return nil, fmt.Errorf("未找到CSV文件")
+	}
+
+	// 打开CSV文件
+	csvReader, err := csvFile.Open()
+	if err != nil {
+		return nil, fmt.Errorf("打开CSV文件失败: %v", err)
+	}
+	defer csvReader.Close()
+
+	// 使用预分配的切片，减少内存重分配
+	trades := make([]*model.ShRawTrade, 0, 10000)
+
+	csvParser := csv.NewReader(csvReader)
+	csvParser.Comma = ','
+	csvParser.LazyQuotes = true
+
+	// 读取标题行
+	headers, err := csvParser.Read()
+	if err != nil {
+		return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
+	}
+
+	// 映射列名到索引位置
+	columnIndex := make(map[string]int, len(headers))
+	for i, header := range headers {
+		columnIndex[header] = i
+	}
+
+	// 批量读取记录，提高效率
+	//bufferSize := 4096
+	records, err := csvParser.ReadAll()
+	if err != nil && err != io.EOF {
+		return nil, fmt.Errorf("读取CSV记录失败: %v", err)
+	}
+
+	// 预分配解析后的交易数据
+	trades = make([]*model.ShRawTrade, 0, len(records))
+
+	// 使用局部变量减少循环中的重复查找
+	var (
+		bizIndexIdx    int
+		channelIdx     int
+		securityIDIdx  int
+		tickTimeIdx    int
+		typeIdx        int
+		buyOrderNoIdx  int
+		sellOrderNoIdx int
+		priceIdx       int
+		qtyIdx         int
+		tradeMoneyIdx  int
+		tickBSFlagIdx  int
+		localTimeIdx   int
+		seqNoIdx       int
+		exists         bool
+	)
+
+	if bizIndexIdx, exists = columnIndex["BizIndex"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少BizIndex列")
+	}
+	if channelIdx, exists = columnIndex["Channel"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少Channel列")
+	}
+	if securityIDIdx, exists = columnIndex["SecurityID"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少SecurityID列")
+	}
+	if tickTimeIdx, exists = columnIndex["TickTime"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少TickTime列")
+	}
+	if typeIdx, exists = columnIndex["Type"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少Type列")
+	}
+	if buyOrderNoIdx, exists = columnIndex["BuyOrderNO"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少BuyOrderNO列")
+	}
+	if sellOrderNoIdx, exists = columnIndex["SellOrderNO"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少SellOrderNO列")
+	}
+	if priceIdx, exists = columnIndex["Price"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少Price列")
+	}
+	if qtyIdx, exists = columnIndex["Qty"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少Qty列")
+	}
+	if tradeMoneyIdx, exists = columnIndex["TradeMoney"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少TradeMoney列")
+	}
+	if tickBSFlagIdx, exists = columnIndex["TickBSFlag"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少TickBSFlag列")
+	}
+	if localTimeIdx, exists = columnIndex["LocalTime"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少LocalTime列")
+	}
+	if seqNoIdx, exists = columnIndex["SeqNo"]; !exists {
+		return nil, fmt.Errorf("CSV文件缺少SeqNo列")
+	}
+
+	// 优化的记录解析，减少重复检查
+	for _, record := range records {
+		if len(record) < len(headers) {
+			continue // 跳过不完整的行
 		}
 
-		// 打开zip中的CSV文件
-		csvFile, err := zipFile.Open()
-		if err != nil {
-			return nil, fmt.Errorf("打开CSV文件 %s 失败: %v", zipFile.Name, err)
-		}
-		defer csvFile.Close()
+		trade := &model.ShRawTrade{}
 
-		// 创建CSV阅读器
-		reader := csv.NewReader(csvFile)
+		// 解析各字段，使用预先获取的索引位置
+		trade.BizIndex, _ = strconv.ParseInt(record[bizIndexIdx], 10, 64)
+		trade.Channel, _ = strconv.ParseInt(record[channelIdx], 10, 64)
+		trade.SecurityID = record[securityIDIdx]
+		trade.TickTime = record[tickTimeIdx]
+		trade.Type = record[typeIdx]
+		trade.BuyOrderNo, _ = strconv.ParseInt(record[buyOrderNoIdx], 10, 64)
+		trade.SellOrderNo, _ = strconv.ParseInt(record[sellOrderNoIdx], 10, 64)
+		trade.Price, _ = strconv.ParseFloat(record[priceIdx], 64)
+		trade.Qty, _ = strconv.ParseInt(record[qtyIdx], 10, 64)
+		trade.TradeMoney, _ = strconv.ParseFloat(record[tradeMoneyIdx], 64)
+		trade.TickBSFlag = record[tickBSFlagIdx]
+		trade.LocalTime = record[localTimeIdx]
+		trade.SeqNo, _ = strconv.ParseInt(record[seqNoIdx], 10, 64)
 
-		// 读取标题行
-		headers, err := reader.Read()
-		if err != nil {
-			return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
-		}
-
-		// 映射列名到索引位置
-		columnIndex := make(map[string]int)
-		for i, header := range headers {
-			columnIndex[header] = i
-		}
-
-		// 读取数据行
-		for {
-			record, err := reader.Read()
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				return nil, fmt.Errorf("读取CSV数据行失败: %v", err)
-			}
-
-			// 跳过空行
-			if len(record) == 0 {
-				continue
-			}
-
-			logger.Info("%+v", record)
-
-			// 创建ShRawTrade对象
-			trade := &model.ShRawTrade{}
-
-			// 解析各字段
-			if idx, exists := columnIndex["BizIndex"]; exists {
-				trade.BizIndex, _ = strconv.ParseInt(record[idx], 10, 64)
-			}
-			if idx, exists := columnIndex["Channel"]; exists {
-				trade.Channel, _ = strconv.ParseInt(record[idx], 10, 64)
-			}
-			if idx, exists := columnIndex["SecurityID"]; exists {
-				trade.SecurityID = record[idx]
-			}
-			if idx, exists := columnIndex["TickTime"]; exists {
-				trade.TickTime = record[idx]
-			}
-			if idx, exists := columnIndex["Type"]; exists {
-				trade.Type = record[idx]
-			}
-			if idx, exists := columnIndex["BuyOrderNO"]; exists {
-				trade.BuyOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
-			}
-			if idx, exists := columnIndex["SellOrderNO"]; exists {
-				trade.SellOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
-			}
-			if idx, exists := columnIndex["Price"]; exists {
-				trade.Price, _ = strconv.ParseFloat(record[idx], 64)
-			}
-			if idx, exists := columnIndex["Qty"]; exists {
-				trade.Qty, _ = strconv.ParseInt(record[idx], 10, 64)
-			}
-			if idx, exists := columnIndex["TradeMoney"]; exists {
-				trade.TradeMoney, _ = strconv.ParseFloat(record[idx], 64)
-			}
-			if idx, exists := columnIndex["TickBSFlag"]; exists {
-				trade.TickBSFlag = record[idx]
-			}
-			if idx, exists := columnIndex["LocalTime"]; exists {
-				trade.LocalTime = record[idx]
-			}
-			if idx, exists := columnIndex["SeqNo"]; exists {
-				trade.SeqNo, _ = strconv.ParseInt(record[idx], 10, 64)
-			}
-
-			trades = append(trades, trade)
-		}
+		trades = append(trades, trade)
 	}
 
 	return trades, nil
