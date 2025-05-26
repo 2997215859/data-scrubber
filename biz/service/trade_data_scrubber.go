@@ -668,28 +668,30 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	if err != nil {
 		return errorx.NewError("ReadSzRawTrade(%s) error: %s", shFilepath, err)
 	}
+	logger.Info("Read Sz Raw Trade End")
+
 	szTradeList, err := SzRawTrade2TradeList(date, szRawTradeList)
 	if err != nil {
 		return errorx.NewError("SzRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
-	logger.Info("Read Sz Raw Trade End")
+	logger.Info("Convert Sz Raw Trade End")
 
 	// 读取和处理上海数据
 	shRawTradeList, err := ManualReadShRawTrade(shFilepath)
 	if err != nil {
 		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
 	}
-	logger.Info("Read Sh Raw Trade End")
+	logger.Info("Convert Sh Raw Trade End")
 
 	shTradeList, err := ShRawTrade2TradeList(date, shRawTradeList)
 	if err != nil {
 		return errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
-	logger.Info("Convert Sh Raw Trade End")
+	logger.Info("Sort Sh Raw Trade End")
 
 	// 排序
 	tradeList := SortRaw(shTradeList, szTradeList)
-	logger.Info("Sort Raw Trade End")
+	logger.Info("Convert Raw Trade End")
 
 	// 写入
 	if err := WriteTrade(dstDir, date, tradeList); err != nil {
