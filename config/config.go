@@ -1,8 +1,8 @@
 package config
 
 import (
+	"encoding/json"
 	logger "github.com/2997215859/golog"
-	"github.com/spf13/viper"
 	"os"
 )
 
@@ -25,22 +25,35 @@ func ReadConfig(filepath string) *Config {
 
 	//configFile := fmt.Sprintf("config.%s", runtimeEnv)
 	//viper.SetConfigName(configFile)
-	viper.SetConfigFile(filepath)
-
-	viper.SetConfigType("json")
-
+	//viper.SetConfigFile(filepath)
+	//
+	//viper.SetConfigType("json")
+	//
 	//viper.AddConfigPath("./conf")
 
 	logger.Info("config_file(%s)", filepath)
+	//
+	//if err := viper.ReadInConfig(); err != nil {
+	//	logger.Fatal("viper.ReadInConfig(%s) error: %s", filepath, err)
+	//}
 
-	if err := viper.ReadInConfig(); err != nil {
-		logger.Fatal("viper.ReadInConfig(%s) error: %s", filepath, err)
+	//config := &Config{}
+	//if err := viper.Unmarshal(&config); err != nil {
+	//	logger.Fatal(err.Error())
+	//}
+
+	// 读取配置文件内容
+	data, err := os.ReadFile(filepath)
+	if err != nil {
+		logger.Fatal("os.ReadFile(%s) error: %v", filepath, err)
 	}
 
+	// 解析 JSON 数据到 Config 结构体
 	config := &Config{}
-	if err := viper.Unmarshal(&config); err != nil {
-		logger.Fatal(err.Error())
+	if err := json.Unmarshal(data, &config); err != nil {
+		logger.Fatal("json.Unmarshal(%s) error: %v", filepath, err)
 	}
+
 	Cfg = config
 	return config
 }
