@@ -446,19 +446,6 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
-	// 读取和处理深圳数据
-	szRawTradeList, err := ManualReadSzRawTrade(szFilepath)
-	if err != nil {
-		return errorx.NewError("ReadSzRawTrade(%s) error: %s", szFilepath, err)
-	}
-	logger.Info("Read Sz Raw Trade End")
-
-	szTradeList, err := SzRawTrade2TradeList(date, szRawTradeList)
-	if err != nil {
-		return errorx.NewError("SzRawTrade2Trade(%s) error: %s", szFilepath, err)
-	}
-	logger.Info("Convert Sz Raw Trade End")
-
 	// 读取和处理上海数据
 	shRawTradeList, err := ReadShRawTrade(shFilepath)
 	if err != nil {
@@ -471,6 +458,19 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 		return errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
 	logger.Info("Sort Sh Raw Trade End")
+
+	// 读取和处理深圳数据
+	szRawTradeList, err := ManualReadSzRawTrade(szFilepath)
+	if err != nil {
+		return errorx.NewError("ReadSzRawTrade(%s) error: %s", szFilepath, err)
+	}
+	logger.Info("Read Sz Raw Trade End")
+
+	szTradeList, err := SzRawTrade2TradeList(date, szRawTradeList)
+	if err != nil {
+		return errorx.NewError("SzRawTrade2Trade(%s) error: %s", szFilepath, err)
+	}
+	logger.Info("Convert Sz Raw Trade End")
 
 	// 排序
 	tradeList := SortRaw(shTradeList, szTradeList)
