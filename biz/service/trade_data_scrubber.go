@@ -14,9 +14,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // sh 处理
@@ -28,7 +30,7 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 	}
 	defer zipReader.Close()
 
-	// 快速查找第一个CSV文件，避免遍历所有文件
+	// 查找第一个CSV文件
 	var csvFile *zip.File
 	for _, f := range zipReader.File {
 		if strings.HasSuffix(strings.ToLower(f.Name), ".csv") {
@@ -41,127 +43,202 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 		return nil, fmt.Errorf("未找到CSV文件")
 	}
 
-	// 打开CSV文件
-	csvReader, err := csvFile.Open()
+	// 创建临时文件用于解压
+	tmpfile, err := os.CreateTemp("", "sh_raw_trade_*.csv")
+	if err != nil {
+		return nil, fmt.Errorf("创建临时文件失败: %v", err)
+	}
+	tmpPath := tmpfile.Name()
+	defer os.Remove(tmpPath) // 清理临时文件
+	defer tmpfile.Close()
+
+	// 将ZIP中的CSV解压到临时文件
+	rc, err := csvFile.Open()
 	if err != nil {
 		return nil, fmt.Errorf("打开CSV文件失败: %v", err)
 	}
-	defer csvReader.Close()
+	defer rc.Close()
 
-	// 使用预分配的切片，减少内存重分配
-	trades := make([]*model.ShRawTrade, 0, 10000)
+	_, err = io.Copy(tmpfile, rc)
+	if err != nil {
+		return nil, fmt.Errorf("解压CSV文件失败: %v", err)
+	}
 
-	csvParser := csv.NewReader(csvReader)
-	csvParser.Comma = ','
-	csvParser.LazyQuotes = true
+	// 获取文件信息和大小
+	fileInfo, err := tmpfile.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("获取文件信息失败: %v", err)
+	}
+	fileSize := fileInfo.Size()
 
-	// 读取标题行
-	headers, err := csvParser.Read()
+	// 读取标题行以获取列索引
+	tmpfile.Seek(0, 0)
+	reader := csv.NewReader(tmpfile)
+	headers, err := reader.Read()
 	if err != nil {
 		return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
 	}
 
-	// 映射列名到索引位置
 	columnIndex := make(map[string]int, len(headers))
 	for i, header := range headers {
 		columnIndex[header] = i
 	}
 
-	// 批量读取记录，提高效率
-	//bufferSize := 4096
-	records, err := csvParser.ReadAll()
-	if err != nil && err != io.EOF {
-		return nil, fmt.Errorf("读取CSV记录失败: %v", err)
-	}
-
-	// 预分配解析后的交易数据
-	trades = make([]*model.ShRawTrade, 0, len(records))
-
-	// 使用局部变量减少循环中的重复查找
-	var (
-		bizIndexIdx    int
-		channelIdx     int
-		securityIDIdx  int
-		tickTimeIdx    int
-		typeIdx        int
-		buyOrderNoIdx  int
-		sellOrderNoIdx int
-		priceIdx       int
-		qtyIdx         int
-		tradeMoneyIdx  int
-		tickBSFlagIdx  int
-		localTimeIdx   int
-		seqNoIdx       int
-		exists         bool
-	)
-
-	if bizIndexIdx, exists = columnIndex["BizIndex"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少BizIndex列")
-	}
-	if channelIdx, exists = columnIndex["Channel"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少Channel列")
-	}
-	if securityIDIdx, exists = columnIndex["SecurityID"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少SecurityID列")
-	}
-	if tickTimeIdx, exists = columnIndex["TickTime"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少TickTime列")
-	}
-	if typeIdx, exists = columnIndex["Type"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少Type列")
-	}
-	if buyOrderNoIdx, exists = columnIndex["BuyOrderNO"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少BuyOrderNO列")
-	}
-	if sellOrderNoIdx, exists = columnIndex["SellOrderNO"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少SellOrderNO列")
-	}
-	if priceIdx, exists = columnIndex["Price"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少Price列")
-	}
-	if qtyIdx, exists = columnIndex["Qty"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少Qty列")
-	}
-	if tradeMoneyIdx, exists = columnIndex["TradeMoney"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少TradeMoney列")
-	}
-	if tickBSFlagIdx, exists = columnIndex["TickBSFlag"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少TickBSFlag列")
-	}
-	if localTimeIdx, exists = columnIndex["LocalTime"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少LocalTime列")
-	}
-	if seqNoIdx, exists = columnIndex["SeqNo"]; !exists {
-		return nil, fmt.Errorf("CSV文件缺少SeqNo列")
-	}
-
-	// 优化的记录解析，减少重复检查
-	for _, record := range records {
-		if len(record) < len(headers) {
-			continue // 跳过不完整的行
+	// 确定每个工作线程处理的块大小
+	numWorkers := runtime.NumCPU() // 默认使用CPU核心数
+	chunkSize := fileSize / int64(numWorkers)
+	if chunkSize < 1024*1024 { // 最小1MB块大小
+		chunkSize = 1024 * 1024
+		numWorkers = int(fileSize / chunkSize)
+		if numWorkers == 0 {
+			numWorkers = 1
 		}
-
-		trade := &model.ShRawTrade{}
-
-		// 解析各字段，使用预先获取的索引位置
-		trade.BizIndex, _ = strconv.ParseInt(record[bizIndexIdx], 10, 64)
-		trade.Channel, _ = strconv.ParseInt(record[channelIdx], 10, 64)
-		trade.SecurityID = record[securityIDIdx]
-		trade.TickTime = record[tickTimeIdx]
-		trade.Type = record[typeIdx]
-		trade.BuyOrderNo, _ = strconv.ParseInt(record[buyOrderNoIdx], 10, 64)
-		trade.SellOrderNo, _ = strconv.ParseInt(record[sellOrderNoIdx], 10, 64)
-		trade.Price, _ = strconv.ParseFloat(record[priceIdx], 64)
-		trade.Qty, _ = strconv.ParseInt(record[qtyIdx], 10, 64)
-		trade.TradeMoney, _ = strconv.ParseFloat(record[tradeMoneyIdx], 64)
-		trade.TickBSFlag = record[tickBSFlagIdx]
-		trade.LocalTime = record[localTimeIdx]
-		trade.SeqNo, _ = strconv.ParseInt(record[seqNoIdx], 10, 64)
-
-		trades = append(trades, trade)
 	}
 
-	return trades, nil
+	// 创建通道用于收集结果
+	resultChan := make(chan []*model.ShRawTrade, numWorkers)
+	errorChan := make(chan error, 1)
+	var wg sync.WaitGroup
+
+	// 启动工作线程
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func(workerID int) {
+			defer wg.Done()
+
+			start := int64(workerID) * chunkSize
+			end := start + chunkSize
+			if end > fileSize {
+				end = fileSize
+			}
+
+			// 打开文件的新句柄
+			file, err := os.Open(tmpPath)
+			if err != nil {
+				errorChan <- fmt.Errorf("worker %d 打开文件失败: %v", workerID, err)
+				return
+			}
+			defer file.Close()
+
+			// 移动到块的起始位置
+			if workerID > 0 {
+				// 找到下一行的开始位置
+				file.Seek(start, 0)
+				buf := make([]byte, 1)
+				for {
+					_, err := file.Read(buf)
+					if err != nil || buf[0] == '\n' {
+						break
+					}
+				}
+				start, _ = file.Seek(0, 1) // 更新起始位置到下一行的开始
+			}
+
+			// 创建CSV阅读器
+			reader := csv.NewReader(file)
+			reader.LazyQuotes = true
+
+			// 如果不是第一个工作线程，跳过标题行
+			if workerID > 0 {
+				reader.Read() // 跳过标题行
+			}
+
+			// 设置读取限制，防止读取超出块边界
+			remaining := end - start
+			if remaining <= 0 {
+				resultChan <- []*model.ShRawTrade{}
+				return
+			}
+
+			// 使用带缓冲的切片
+			trades := make([]*model.ShRawTrade, 0, 10000)
+
+			// 读取块内的所有记录
+			for {
+				record, err := reader.Read()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					errorChan <- fmt.Errorf("worker %d 读取记录失败: %v", workerID, err)
+					return
+				}
+
+				// 检查是否超出块边界
+				pos, _ := file.Seek(0, 1)
+				if pos > end {
+					break
+				}
+
+				// 解析记录
+				trade := &model.ShRawTrade{}
+
+				if idx, exists := columnIndex["BizIndex"]; exists {
+					trade.BizIndex, _ = strconv.ParseInt(record[idx], 10, 64)
+				}
+				if idx, exists := columnIndex["Channel"]; exists {
+					trade.Channel, _ = strconv.ParseInt(record[idx], 10, 64)
+				}
+				if idx, exists := columnIndex["SecurityID"]; exists {
+					trade.SecurityID = record[idx]
+				}
+				if idx, exists := columnIndex["TickTime"]; exists {
+					trade.TickTime = record[idx]
+				}
+				if idx, exists := columnIndex["Type"]; exists {
+					trade.Type = record[idx]
+				}
+				if idx, exists := columnIndex["BuyOrderNO"]; exists {
+					trade.BuyOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
+				}
+				if idx, exists := columnIndex["SellOrderNO"]; exists {
+					trade.SellOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
+				}
+				if idx, exists := columnIndex["Price"]; exists {
+					trade.Price, _ = strconv.ParseFloat(record[idx], 64)
+				}
+				if idx, exists := columnIndex["Qty"]; exists {
+					trade.Qty, _ = strconv.ParseInt(record[idx], 10, 64)
+				}
+				if idx, exists := columnIndex["TradeMoney"]; exists {
+					trade.TradeMoney, _ = strconv.ParseFloat(record[idx], 64)
+				}
+				if idx, exists := columnIndex["TickBSFlag"]; exists {
+					trade.TickBSFlag = record[idx]
+				}
+				if idx, exists := columnIndex["LocalTime"]; exists {
+					trade.LocalTime = record[idx]
+				}
+				if idx, exists := columnIndex["SeqNo"]; exists {
+					trade.SeqNo, _ = strconv.ParseInt(record[idx], 10, 64)
+				}
+
+				trades = append(trades, trade)
+			}
+
+			resultChan <- trades
+		}(i)
+	}
+
+	// 等待所有工作线程完成并收集结果
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// 合并结果
+	var allTrades []*model.ShRawTrade
+	for trades := range resultChan {
+		allTrades = append(allTrades, trades...)
+	}
+
+	// 检查错误
+	select {
+	case err := <-errorChan:
+		return nil, err
+	default:
+		return allTrades, nil
+	}
 }
 
 func ReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
