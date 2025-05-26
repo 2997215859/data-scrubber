@@ -161,7 +161,7 @@ func SzRaw2Direction(buyOrderId, sellOrderId int64) string {
 
 func SzRawTrade2Trade(date string, v *model.SzRawTrade) (*model.Trade, error) {
 	// 只处理交易记录
-	if v.ExecType != 52 {
+	if v.ExecType != 70 {
 		return nil, nil
 	}
 

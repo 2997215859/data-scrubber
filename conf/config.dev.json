@@ -1,5 +1,5 @@
 {
-  "src_dir": "./testdata/MDL",
-  "dst_dir": "./testdata/dst",
+  "src_dir": "./testdata/Mock",
+  "dst_dir": "./testdata/MockDst",
   "date_list": ["20240115"]
 }
