@@ -7,15 +7,126 @@ import (
 	"data-scrubber/biz/errorx"
 	"data-scrubber/biz/model"
 	"data-scrubber/biz/utils"
+	"encoding/csv"
 	"fmt"
 	logger "github.com/2997215859/golog"
 	"github.com/gocarina/gocsv"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 // sh 处理
+
+func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
+	// 打开zip文件
+	zipReader, err := zip.OpenReader(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("打开zip文件失败: %v", err)
+	}
+	defer zipReader.Close()
+
+	var trades []*model.ShRawTrade
+
+	// 遍历zip文件中的所有文件
+	for _, zipFile := range zipReader.File {
+		// 只处理CSV文件
+		if !strings.HasSuffix(strings.ToLower(zipFile.Name), ".csv") {
+			continue
+		}
+
+		// 打开zip中的CSV文件
+		csvFile, err := zipFile.Open()
+		if err != nil {
+			return nil, fmt.Errorf("打开CSV文件 %s 失败: %v", zipFile.Name, err)
+		}
+		defer csvFile.Close()
+
+		// 创建CSV阅读器
+		reader := csv.NewReader(csvFile)
+
+		// 读取标题行
+		headers, err := reader.Read()
+		if err != nil {
+			return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
+		}
+
+		// 映射列名到索引位置
+		columnIndex := make(map[string]int)
+		for i, header := range headers {
+			columnIndex[header] = i
+		}
+
+		// 读取数据行
+		for {
+			record, err := reader.Read()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return nil, fmt.Errorf("读取CSV数据行失败: %v", err)
+			}
+
+			// 跳过空行
+			if len(record) == 0 {
+				continue
+			}
+
+			logger.Info("%+v", record)
+
+			// 创建ShRawTrade对象
+			trade := &model.ShRawTrade{}
+
+			// 解析各字段
+			if idx, exists := columnIndex["BizIndex"]; exists {
+				trade.BizIndex, _ = strconv.ParseInt(record[idx], 10, 64)
+			}
+			if idx, exists := columnIndex["Channel"]; exists {
+				trade.Channel, _ = strconv.ParseInt(record[idx], 10, 64)
+			}
+			if idx, exists := columnIndex["SecurityID"]; exists {
+				trade.SecurityID = record[idx]
+			}
+			if idx, exists := columnIndex["TickTime"]; exists {
+				trade.TickTime = record[idx]
+			}
+			if idx, exists := columnIndex["Type"]; exists {
+				trade.Type = record[idx]
+			}
+			if idx, exists := columnIndex["BuyOrderNO"]; exists {
+				trade.BuyOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
+			}
+			if idx, exists := columnIndex["SellOrderNO"]; exists {
+				trade.SellOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
+			}
+			if idx, exists := columnIndex["Price"]; exists {
+				trade.Price, _ = strconv.ParseFloat(record[idx], 64)
+			}
+			if idx, exists := columnIndex["Qty"]; exists {
+				trade.Qty, _ = strconv.ParseInt(record[idx], 10, 64)
+			}
+			if idx, exists := columnIndex["TradeMoney"]; exists {
+				trade.TradeMoney, _ = strconv.ParseFloat(record[idx], 64)
+			}
+			if idx, exists := columnIndex["TickBSFlag"]; exists {
+				trade.TickBSFlag = record[idx]
+			}
+			if idx, exists := columnIndex["LocalTime"]; exists {
+				trade.LocalTime = record[idx]
+			}
+			if idx, exists := columnIndex["SeqNo"]; exists {
+				trade.SeqNo, _ = strconv.ParseInt(record[idx], 10, 64)
+			}
+
+			trades = append(trades, trade)
+		}
+	}
+
+	return trades, nil
+}
 
 func ReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 	fileInfo, err := os.Stat(filepath)
@@ -219,7 +330,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
 	// 读取和处理上海数据
-	shRawTradeList, err := ReadShRawTrade(shFilepath)
+	shRawTradeList, err := ManualReadShRawTrade(shFilepath)
 	if err != nil {
 		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
 	}
