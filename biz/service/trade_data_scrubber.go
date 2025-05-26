@@ -251,14 +251,17 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	logger.Info("Convert Raw Trade End")
 
 	// 写入
+	logger.Info("Write Trade.gz Begin")
 	if err := WriteTrade(dstDir, date, tradeList); err != nil {
 		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
 	}
+	logger.Info("Write Trade.gz End")
 
+	logger.Info("Write Trade.parquet Begin")
 	if err := WriteParquet(dstDir, date, tradeList); err != nil {
 		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
 	}
-	logger.Info("Write Raw Trade End")
+	logger.Info("Write Trade.parquet End")
 	return nil
 }
 
