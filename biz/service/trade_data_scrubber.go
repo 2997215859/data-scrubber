@@ -8,6 +8,7 @@ import (
 	"data-scrubber/biz/model"
 	"data-scrubber/biz/utils"
 	"fmt"
+	logger "github.com/2997215859/golog"
 	"github.com/gocarina/gocsv"
 	"os"
 	"path/filepath"
@@ -43,6 +44,7 @@ func ReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 	defer csvReader.Close()
 
 	list := make([]*model.ShRawTrade, 0)
+	//list := &model.ShRawTrade{}
 	if err := gocsv.Unmarshal(csvReader, &list); err != nil {
 		return nil, errorx.NewError("unmarshal filepath(%s) error: %v", filepath, err)
 	}
@@ -59,41 +61,54 @@ func ShRaw2Direction(TickBsFlag string) string {
 	return constdef.DirectionUnknown
 }
 
-func ShRawTrade2Trade(date string, rawList []*model.ShRawTrade) ([]*model.Trade, error) {
+func ShRawTrade2Trade(date string, v *model.ShRawTrade) (*model.Trade, error) {
+	if v.Type != "T" {
+		return nil, nil
+	}
+
+	tradeTimestamp, err := utils.TimeToNano(date, v.TickTime)
+	if err != nil {
+		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TickTime, err)
+	}
+
+	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	if err != nil {
+		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
+	}
+
+	direction := ShRaw2Direction(v.TickBSFlag)
+	//if direction == constdef.DirectionUnknown {
+	//	return nil, errorx.NewError("ShRaw2Direction(%s) error", v.TickBSFlag)
+	//}
+
+	res := &model.Trade{
+		InstrumentId:   fmt.Sprintf("%s.SH", v.SecurityID),
+		TradeTimestamp: tradeTimestamp,
+		TradeId:        v.BizIndex,
+		Price:          v.Price,
+		Volume:         v.Qty,
+		Turnover:       v.TradeMoney,
+		Direction:      direction,
+		BuyOrderId:     v.BuyOrderNo,
+		SellOrderId:    v.SellOrderNo,
+		LocalTimestamp: localTimestamp,
+	}
+
+	return res, nil
+}
+
+func ShRawTrade2TradeList(date string, rawList []*model.ShRawTrade) ([]*model.Trade, error) {
 	var res []*model.Trade
 	for _, v := range rawList {
-		// 只处理交易记录
-		if v.Type != "T" {
+		trade, err := ShRawTrade2Trade(date, v)
+		if err != nil {
+			return nil, err
+		}
+		if trade == nil { // 说明不是所需要的数据，但也不应该报 error
 			continue
 		}
 
-		tradeTimestamp, err := utils.TimeToNano(date, v.TickTime)
-		if err != nil {
-			return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TickTime, err)
-		}
-
-		localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
-		if err != nil {
-			return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
-		}
-
-		direction := ShRaw2Direction(v.TickBSFlag)
-		if direction == constdef.DirectionUnknown {
-			return nil, errorx.NewError("ShRaw2Direction(%s) error", v.TickBSFlag)
-		}
-
-		res = append(res, &model.Trade{
-			InstrumentId:   fmt.Sprintf("%s.SH", v.SecurityID),
-			TradeTimestamp: tradeTimestamp,
-			TradeId:        v.BizIndex,
-			Price:          v.Price,
-			Volume:         v.Qty,
-			Turnover:       v.TradeMoney,
-			Direction:      v.TickBSFlag,
-			BuyOrderId:     v.BuyOrderNo,
-			SellOrderId:    v.SellOrderNo,
-			LocalTimestamp: localTimestamp,
-		})
+		res = append(res, trade)
 	}
 
 	return res, nil
@@ -144,41 +159,54 @@ func SzRaw2Direction(buyOrderId, sellOrderId int64) string {
 	return constdef.DirectionUnknown
 }
 
-func SzRawTrade2Trade(date string, rawList []*model.SzRawTrade) ([]*model.Trade, error) {
+func SzRawTrade2Trade(date string, v *model.SzRawTrade) (*model.Trade, error) {
+	// 只处理交易记录
+	if v.ExecType != 52 {
+		return nil, nil
+	}
+
+	tradeTimestamp, err := utils.TimeToNano(date, v.TransactTime)
+	if err != nil {
+		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TransactTime, err)
+	}
+
+	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	if err != nil {
+		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
+	}
+
+	direction := SzRaw2Direction(v.BidApplSeqNum, v.OfferApplSeqNum)
+	//if direction == constdef.DirectionUnknown {
+	//	return nil, errorx.NewError("ShRaw2Direction(%d %d) error", v.BidApplSeqNum, v.OfferApplSeqNum)
+	//}
+
+	res := &model.Trade{
+		InstrumentId:   fmt.Sprintf("%s.SZ", v.SecurityID),
+		TradeTimestamp: tradeTimestamp,
+		TradeId:        v.SeqNo,
+		Price:          v.LastPx,
+		Volume:         v.LastQty,
+		Turnover:       v.LastPx * float64(v.LastQty),
+		Direction:      direction,
+		BuyOrderId:     v.BidApplSeqNum,
+		SellOrderId:    v.OfferApplSeqNum,
+		LocalTimestamp: localTimestamp,
+	}
+	return res, nil
+}
+
+func SzRawTrade2TradeList(date string, rawList []*model.SzRawTrade) ([]*model.Trade, error) {
 	var res []*model.Trade
 	for _, v := range rawList {
-		// 只处理交易记录
-		if v.ExecType != 52 {
+		trade, err := SzRawTrade2Trade(date, v)
+		if err != nil {
+			return nil, err
+		}
+		if trade == nil { // 说明不是所需要的数据，但也不应该报 error
 			continue
 		}
 
-		tradeTimestamp, err := utils.TimeToNano(date, v.TransactTime)
-		if err != nil {
-			return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TransactTime, err)
-		}
-
-		localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
-		if err != nil {
-			return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
-		}
-
-		direction := SzRaw2Direction(v.BidApplSeqNum, v.OfferApplSeqNum)
-		if direction == constdef.DirectionUnknown {
-			return nil, errorx.NewError("ShRaw2Direction(%d %d) error", v.BidApplSeqNum, v.OfferApplSeqNum)
-		}
-
-		res = append(res, &model.Trade{
-			InstrumentId:   fmt.Sprintf("%s.SH", v.SecurityID),
-			TradeTimestamp: tradeTimestamp,
-			TradeId:        v.SeqNo,
-			Price:          v.LastPx,
-			Volume:         v.LastQty,
-			Turnover:       v.LastPx * float64(v.LastQty),
-			Direction:      direction,
-			BuyOrderId:     v.BidApplSeqNum,
-			SellOrderId:    v.OfferApplSeqNum,
-			LocalTimestamp: localTimestamp,
-		})
+		res = append(res, trade)
 	}
 
 	return res, nil
@@ -195,28 +223,32 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	if err != nil {
 		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
 	}
-	shTradeList, err := ShRawTrade2Trade(date, shRawTradeList)
+	shTradeList, err := ShRawTrade2TradeList(date, shRawTradeList)
 	if err != nil {
 		return errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
+	logger.Info("Read Sh Raw Trade End")
 
 	// 读取和处理深圳数据
 	szRawTradeList, err := ReadSzRawTrade(szFilepath)
 	if err != nil {
 		return errorx.NewError("ReadSzRawTrade(%s) error: %s", shFilepath, err)
 	}
-	szTradeList, err := SzRawTrade2Trade(date, szRawTradeList)
+	szTradeList, err := SzRawTrade2TradeList(date, szRawTradeList)
 	if err != nil {
 		return errorx.NewError("SzRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
+	logger.Info("Read Sz Raw Trade End")
 
 	// 排序
 	tradeList := SortRaw(shTradeList, szTradeList)
+	logger.Info("Sort Raw Trade End")
 
 	// 写入
 	if err := WriteTrade(dstDir, date, tradeList); err != nil {
 		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
 	}
+	logger.Info("Write Raw Trade End")
 	return nil
 }
 
@@ -256,7 +288,7 @@ func WriteTrade(dstDir string, date string, tradeList []*model.Trade) error {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
 
-	filepath := filepath.Join(dstDir, date, fmt.Sprintf("%s_trade.gz", date))
+	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_trade.gz", date))
 
 	file, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {

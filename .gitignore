@@ -2,3 +2,5 @@
 **/logs/
 **/dest/
 testdata
+*.parquet
+*.csv
