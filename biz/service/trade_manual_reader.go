@@ -16,23 +16,7 @@ import (
 	"sync"
 )
 
-type SzRawTrade struct {
-	ChannelNo        int64
-	ApplSeqNum       int64
-	MDStreamID       string
-	BidApplSeqNum    int64
-	OfferApplSeqNum  int64
-	SecurityID       string
-	SecurityIDSource int64
-	LastPx           float64
-	LastQty          int64
-	ExecType         int
-	TransactTime     string
-	LocalTime        string
-	SeqNo            int64
-}
-
-func ManualReadSzRawTrade(filepath string) ([]*SzRawTrade, error) {
+func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 	// 打开ZIP文件
 	zipReader, err := zip.OpenReader(filepath)
 	if err != nil {
@@ -88,7 +72,7 @@ func ManualReadSzRawTrade(filepath string) ([]*SzRawTrade, error) {
 	}
 
 	// 存储解析结果
-	var trades []*SzRawTrade
+	var trades []*model.SzRawTrade
 	lineNum := 2 // 从第2行开始(标题是第1行)
 
 	// 逐行读取数据
@@ -112,7 +96,7 @@ func ManualReadSzRawTrade(filepath string) ([]*SzRawTrade, error) {
 		}
 
 		// 创建新的SzRawTrade实例
-		trade := &SzRawTrade{}
+		trade := &model.SzRawTrade{}
 
 		// 使用标题映射来解析各字段
 		if err := parseInt64Field(fields, headerIndex, "ChannelNo", &trade.ChannelNo); err != nil {
