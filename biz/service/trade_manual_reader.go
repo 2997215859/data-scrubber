@@ -3,6 +3,7 @@ package service
 import (
 	"archive/zip"
 	"bufio"
+	"bytes"
 	"data-scrubber/biz/model"
 	"encoding/csv"
 	"fmt"
@@ -429,14 +430,18 @@ func UnzipAndManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) 
 		return allTrades, nil
 	}
 }
-
 func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
-	// 打开ZIP文件
-	zipReader, err := zip.OpenReader(filepath)
+	// 读取整个ZIP文件到内存
+	zipData, err := os.ReadFile(filepath)
 	if err != nil {
-		return nil, fmt.Errorf("打开zip文件失败: %v", err)
+		return nil, fmt.Errorf("读取ZIP文件失败: %v", err)
 	}
-	defer zipReader.Close()
+
+	// 创建zip.Reader（支持随机访问）
+	zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+	if err != nil {
+		return nil, fmt.Errorf("解析ZIP文件失败: %v", err)
+	}
 
 	// 查找第一个CSV文件
 	var csvFile *zip.File
@@ -451,18 +456,16 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 		return nil, fmt.Errorf("未找到CSV文件")
 	}
 
-	// 打开ZIP中的CSV文件
+	// 打开CSV文件（返回io.ReadSeeker，支持Seek操作）
 	csvReader, err := csvFile.Open()
 	if err != nil {
 		return nil, fmt.Errorf("打开CSV文件失败: %v", err)
 	}
 	defer csvReader.Close()
 
-	// 创建内存中的缓冲区读取器
-	reader := bufio.NewReader(csvReader)
-
 	// 读取标题行以获取列索引
-	headers, err := reader.ReadString('\n')
+	headerReader := bufio.NewReader(csvReader)
+	headers, err := headerReader.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf("读取CSV标题行失败: %v", err)
 	}
@@ -476,8 +479,11 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 		columnIndex[strings.TrimSpace(header)] = i
 	}
 
-	// 获取文件大小，用于分块处理
+	// 获取CSV文件的未压缩大小
 	fileSize := csvFile.UncompressedSize64
+	if fileSize == 0 {
+		return nil, fmt.Errorf("CSV文件大小为0")
+	}
 
 	// 确定每个工作线程处理的块大小
 	numWorkers := runtime.NumCPU() // 默认使用CPU核心数
@@ -509,28 +515,7 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 				end = int64(fileSize)
 			}
 
-			// 打开ZIP文件的新句柄
-			zipFile, err := zip.OpenReader(filepath)
-			if err != nil {
-				errorChan <- fmt.Errorf("worker %d 打开zip文件失败: %v", workerID, err)
-				return
-			}
-			defer zipFile.Close()
-
-			// 查找并打开CSV文件
-			var csvFile *zip.File
-			for _, f := range zipFile.File {
-				if strings.HasSuffix(strings.ToLower(f.Name), ".csv") {
-					csvFile = f
-					break
-				}
-			}
-
-			if csvFile == nil {
-				errorChan <- fmt.Errorf("worker %d 未找到CSV文件", workerID)
-				return
-			}
-
+			// 创建独立的CSV读取器（支持Seek）
 			fileReader, err := csvFile.Open()
 			if err != nil {
 				errorChan <- fmt.Errorf("worker %d 打开CSV文件失败: %v", workerID, err)
@@ -538,33 +523,44 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 			}
 			defer fileReader.Close()
 
-			// 移动到块的起始位置
-			seeker, ok := fileReader.(io.Seeker)
+			seeker, ok := fileReader.(io.ReadSeeker)
 			if !ok {
-				errorChan <- fmt.Errorf("worker %d 不支持seek操作", workerID)
+				errorChan <- fmt.Errorf("worker %d 文件不支持Seek操作", workerID)
 				return
 			}
 
+			// 移动到块的起始位置
 			if workerID > 0 {
 				// 找到下一行的开始位置
-				seeker.Seek(start, 0)
+				if _, err := seeker.Seek(start, 0); err != nil {
+					errorChan <- fmt.Errorf("worker %d 定位失败: %v", workerID, err)
+					return
+				}
+
 				buf := make([]byte, 1)
 				for {
-					_, err := fileReader.Read(buf)
-					if err != nil || buf[0] == '\n' {
-						break
+					n, err := seeker.Read(buf)
+					if n == 0 || err != nil {
+						break // 到达文件末尾
+					}
+					if buf[0] == '\n' {
+						break // 找到行首
 					}
 				}
+
 				start, _ = seeker.Seek(0, 1) // 更新起始位置到下一行的开始
 			}
 
 			// 创建CSV阅读器
-			reader := csv.NewReader(fileReader)
+			reader := csv.NewReader(seeker)
 			reader.LazyQuotes = true
 
 			// 如果不是第一个工作线程，跳过标题行
-			if workerID > 0 {
-				reader.Read() // 跳过标题行
+			if workerID == 0 {
+				if _, err := reader.Read(); err != nil { // 跳过标题行
+					errorChan <- fmt.Errorf("worker %d 读取标题行失败: %v", workerID, err)
+					return
+				}
 			}
 
 			// 使用带缓冲的切片
@@ -573,28 +569,32 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 			// 读取块内的所有记录
 			for {
 				record, err := reader.Read()
-				if err == io.EOF {
-					break
-				}
 				if err != nil {
-					errorChan <- fmt.Errorf("worker %d 读取记录失败: %v", workerID, err)
+					if err == io.EOF {
+						break
+					}
+					errorChan <- fmt.Errorf("worker %d 解析行失败: %v", workerID, err)
 					return
 				}
 
 				// 检查是否超出块边界
 				pos, _ := seeker.Seek(0, 1)
-				if pos > end {
-					break
+				if pos > end && workerID != numWorkers-1 {
+					break // 最后一个worker可以读取到文件末尾
 				}
 
 				// 解析记录
 				trade := &model.ShRawTrade{}
 
 				if idx, exists := columnIndex["BizIndex"]; exists {
-					trade.BizIndex, _ = strconv.ParseInt(record[idx], 10, 64)
+					if trade.BizIndex, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
+						logger.Warn("worker %d 解析BizIndex失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["Channel"]; exists {
-					trade.Channel, _ = strconv.ParseInt(record[idx], 10, 64)
+					if trade.Channel, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
+						logger.Warn("worker %d 解析Channel失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["SecurityID"]; exists {
 					trade.SecurityID = record[idx]
@@ -606,19 +606,29 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 					trade.Type = record[idx]
 				}
 				if idx, exists := columnIndex["BuyOrderNO"]; exists {
-					trade.BuyOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
+					if trade.BuyOrderNo, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
+						logger.Warn("worker %d 解析BuyOrderNO失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["SellOrderNO"]; exists {
-					trade.SellOrderNo, _ = strconv.ParseInt(record[idx], 10, 64)
+					if trade.SellOrderNo, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
+						logger.Warn("worker %d 解析SellOrderNO失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["Price"]; exists {
-					trade.Price, _ = strconv.ParseFloat(record[idx], 64)
+					if trade.Price, err = strconv.ParseFloat(record[idx], 64); err != nil {
+						logger.Warn("worker %d 解析Price失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["Qty"]; exists {
-					trade.Qty, _ = strconv.ParseInt(record[idx], 10, 64)
+					if trade.Qty, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
+						logger.Warn("worker %d 解析Qty失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["TradeMoney"]; exists {
-					trade.TradeMoney, _ = strconv.ParseFloat(record[idx], 64)
+					if trade.TradeMoney, err = strconv.ParseFloat(record[idx], 64); err != nil {
+						logger.Warn("worker %d 解析TradeMoney失败: %v", workerID, err)
+					}
 				}
 				if idx, exists := columnIndex["TickBSFlag"]; exists {
 					trade.TickBSFlag = record[idx]
@@ -627,7 +637,9 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 					trade.LocalTime = record[idx]
 				}
 				if idx, exists := columnIndex["SeqNo"]; exists {
-					trade.SeqNo, _ = strconv.ParseInt(record[idx], 10, 64)
+					if trade.SeqNo, err = strconv.ParseInt(record[idx], 10, 64); err != nil {
+						logger.Warn("worker %d 解析SeqNo失败: %v", workerID, err)
+					}
 				}
 
 				trades = append(trades, trade)
@@ -657,3 +669,11 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 		return allTrades, nil
 	}
 }
+
+// 辅助函数：分割行并处理行末逗号
+//func splitLine(line string) []string {
+//	if strings.HasSuffix(line, ",") {
+//		line = strings.TrimSuffix(line, ",")
+//	}
+//	return strings.Split(line, ",")
+//}
