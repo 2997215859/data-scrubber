@@ -319,7 +319,7 @@ func WriteParquet(dstDir string, date string, tradeList []*model.Trade) error {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
 
-	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_trade.gz", date))
+	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_trade.parquet", date))
 
 	//创建写入器
 	pw, err := NewParquetWriter(filepath, new(model.Trade))
