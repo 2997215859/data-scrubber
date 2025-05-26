@@ -24,11 +24,11 @@ func main() {
 	config.PrintVersionInfo()
 
 	for _, date := range cfg.DateList {
-		logger.Info("process date(%s) begin", date)
+		logger.Info("Process Date(%s) Begin", date)
 		if err := service.MergeRawTrade(cfg.SrcDir, cfg.DstDir, date); err != nil {
 			logger.Error("date(%s) MergeRawTrade error: %v", date, err)
 		}
-		logger.Info("process date(%s) end", date)
+		logger.Info("Process Date(%s) End", date)
 	}
 
 	//service.ExampleUsage()
