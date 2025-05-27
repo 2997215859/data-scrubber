@@ -230,7 +230,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	if err != nil {
 		return errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
 	}
-	logger.Info("Sort Sh Raw Trade End")
+	logger.Info("Convert Sh Raw Trade End")
 
 	// 读取和处理深圳数据
 	logger.Info("Read Sz Raw Trade Begin")
@@ -248,7 +248,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 
 	// 排序
 	tradeList := SortRaw(shTradeList, szTradeList)
-	logger.Info("Convert Raw Trade End")
+	logger.Info("Convert All Raw Trade End")
 
 	// 写入
 	//logger.Info("Write Trade.gz Begin")
