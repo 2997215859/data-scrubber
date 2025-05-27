@@ -251,17 +251,24 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	logger.Info("Convert Raw Trade End")
 
 	// 写入
-	logger.Info("Write Trade.gz Begin")
-	if err := WriteTrade(dstDir, date, tradeList); err != nil {
-		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	}
-	logger.Info("Write Trade.gz End")
+	//logger.Info("Write Trade.gz Begin")
+	//if err := WriteTrade(dstDir, date, tradeList); err != nil {
+	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
+	//}
+	//logger.Info("Write Trade.gz End")
+	//
+	//logger.Info("Write Trade.parquet Begin")
+	//if err := WriteParquet(dstDir, date, tradeList); err != nil {
+	//	return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	//}
+	//logger.Info("Write Trade.parquet End")
 
-	logger.Info("Write Trade.parquet Begin")
-	if err := WriteParquet(dstDir, date, tradeList); err != nil {
+	tradeMap := GetMapTrade(tradeList)
+	logger.Info("Write StockTrade.parquet Begin")
+	if err := WriteStockParquet(dstDir, date, tradeMap); err != nil {
 		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
 	}
-	logger.Info("Write Trade.parquet End")
+	logger.Info("Write StockTrade.parquet End")
 	return nil
 }
 
@@ -293,6 +300,16 @@ func SortRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
 	result = append(result, b[j:]...)
 
 	return result
+}
+
+func GetMapTrade(tradeList []*model.Trade) map[string][]*model.Trade {
+	res := make(map[string][]*model.Trade, 0)
+
+	for _, v := range tradeList {
+		res[v.InstrumentId] = append(res[v.InstrumentId], v)
+	}
+
+	return res
 }
 
 func WriteTrade(dstDir string, date string, tradeList []*model.Trade) error {
@@ -348,5 +365,39 @@ func WriteParquet(dstDir string, date string, tradeList []*model.Trade) error {
 		}
 	}
 
+	return nil
+}
+
+func WriteStockParquet(dstDir string, date string, mapTrader map[string][]*model.Trade) error {
+	dstDir = filepath.Join(dstDir, date)
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
+	}
+
+	for instrumentId, tradeList := range mapTrader {
+		filePath := filepath.Join(dstDir, fmt.Sprintf("%s_trade_%s.parquet", date, instrumentId))
+
+		//创建写入器
+		pw, err := NewParquetWriter(filePath, new(model.Trade))
+		if err != nil {
+			return errorx.NewError("NewParquetWriter error: %s", err)
+		}
+
+		defer func() {
+			if err := pw.Close(); err != nil {
+				logger.Error("关闭Parquet写入器时出错: %v", err)
+			}
+		}()
+
+		for _, trade := range tradeList {
+			if trade == nil {
+				continue
+			}
+
+			if err := pw.Write(trade); err != nil {
+				logger.Error("WriteStockParquet InstrumentId(%s) error: %v", instrumentId, err)
+			}
+		}
+	}
 	return nil
 }
