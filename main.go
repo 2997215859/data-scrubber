@@ -1,6 +1,7 @@
 package main
 
 import (
+	"data-scrubber/biz/constdef"
 	"data-scrubber/biz/service"
 	"data-scrubber/biz/utils"
 	"data-scrubber/config"
@@ -8,6 +9,7 @@ import (
 	"github.com/golang-module/carbon/v2"
 	"github.com/spf13/pflag"
 	"path/filepath"
+	"slices"
 )
 
 func init() {
@@ -52,12 +54,23 @@ func main() {
 			continue
 		}
 
-		// 打印当前日期
-		logger.Info("Process Date(%s) Begin", date)
-		if err := service.MergeRawTrade(cfg.SrcDir, cfg.DstDir, date); err != nil {
-			logger.Error("date(%s) MergeRawTrade error: %v", date, err)
+		if slices.Contains(cfg.DataTypeList, constdef.DataTypeSnapshot) {
+			snapshotDstDir := filepath.Join(cfg.SrcDir, date, constdef.DataTypeSnapshot)
+			logger.Info("Process Date(%s) Snapshot Begin", date)
+			if err := service.MergeRawSnapshot(cfg.SrcDir, snapshotDstDir, date); err != nil {
+				logger.Error("date(%s) MergeRawSnapshot error: %v", date, err)
+			}
+			logger.Info("Process Date(%s) Snapshot End", date)
 		}
-		logger.Info("Process Date(%s) End", date)
+
+		if slices.Contains(cfg.DataTypeList, constdef.DataTypeTrade) {
+			tradeDstDir := filepath.Join(cfg.SrcDir, date, constdef.DataTypeTrade)
+			logger.Info("Process Date(%s) Trade Begin", date)
+			if err := service.MergeRawTrade(cfg.SrcDir, tradeDstDir, date); err != nil {
+				logger.Error("date(%s) MergeRawTrade error: %v", date, err)
+			}
+			logger.Info("Process Date(%s) Trade End", date)
+		}
 	}
 
 	//service.ExampleUsage()

@@ -2,6 +2,14 @@ package model
 
 // ==== 原生数据格式
 
+type ShRawSnapshot struct {
+	// todo
+}
+
+type SzRawSnapshot struct {
+	// todo
+}
+
 /*
 exp 上海的逐笔成交是 4.24
 BizIndex,Channel,SecurityID,TickTime,Type,BuyOrderNO,SellOrderNO,Price,Qty,TradeMoney,TickBSFlag,LocalTime,SeqNo

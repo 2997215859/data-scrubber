@@ -27,3 +27,8 @@ type Trade struct {
 	SellOrderId    int64   `parquet:"name=SellOrderId, type=INT64"`
 	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
 }
+
+type Snapshot struct {
+	InstrumentId   string `parquet:"name=InstrumentId, type=BYTE_ARRAY, convertedtype=UTF8"`
+	LocalTimestamp int64  `parquet:"name=LocalTimestamp, type=INT64"`
+}

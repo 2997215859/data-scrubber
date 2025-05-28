@@ -7,6 +7,7 @@ toolchain go1.23.7
 require (
 	github.com/2997215859/golog v0.0.0-20250403123747-937295d0defa
 	github.com/gocarina/gocsv v0.0.0-20240520201108-78e41c74b4b1
+	github.com/golang-module/carbon/v2 v2.6.7
 	github.com/samber/lo v1.50.0
 	github.com/spf13/pflag v1.0.6
 	github.com/xitongsys/parquet-go v1.6.2
@@ -22,7 +23,6 @@ require (
 	github.com/gobuffalo/packd v0.3.0 // indirect
 	github.com/gobuffalo/packr v1.30.1 // indirect
 	github.com/golang-module/carbon v1.7.3 // indirect
-	github.com/golang-module/carbon/v2 v2.6.7 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/joho/godotenv v1.3.0 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect

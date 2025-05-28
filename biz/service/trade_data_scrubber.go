@@ -247,7 +247,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	logger.Info("Convert Sz Raw Trade End")
 
 	// 排序
-	tradeList := SortRaw(shTradeList, szTradeList)
+	tradeList := SortTradeRaw(shTradeList, szTradeList)
 	logger.Info("Convert All Raw Trade End")
 
 	// 写入
@@ -272,7 +272,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	return nil
 }
 
-func SortRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
+func SortTradeRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
 	// 分别对 a 和 b 排序
 	sort.Slice(a, func(i, j int) bool {
 		return a[i].LocalTimestamp < a[j].LocalTimestamp

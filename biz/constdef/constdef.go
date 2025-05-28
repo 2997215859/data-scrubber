@@ -5,3 +5,8 @@ const (
 	DirectionSell    = "sell"
 	DirectionUnknown = "unknown"
 )
+
+const (
+	DataTypeSnapshot = "snapshot"
+	DataTypeTrade    = "trade"
+)
