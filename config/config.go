@@ -7,9 +7,11 @@ import (
 )
 
 type Config struct {
-	SrcDir   string   `json:"src_dir"`
-	DstDir   string   `json:"dst_dir"`
-	DateList []string `json:"date_list"`
+	SrcDir       string   `json:"src_dir"`
+	DstDir       string   `json:"dst_dir"`
+	DateStart    string   `json:"date_start"`
+	DateEnd      string   `json:"date_end"`
+	DataTypeList []string `json:"data_type_list"`
 }
 
 var Cfg *Config
@@ -23,24 +25,7 @@ func ReadConfig(filepath string) *Config {
 		logger.Fatal("config_file(%s) not exist: %s", filepath)
 	}
 
-	//configFile := fmt.Sprintf("config.%s", runtimeEnv)
-	//viper.SetConfigName(configFile)
-	//viper.SetConfigFile(filepath)
-	//
-	//viper.SetConfigType("json")
-	//
-	//viper.AddConfigPath("./conf")
-
 	logger.Info("config_file(%s)", filepath)
-	//
-	//if err := viper.ReadInConfig(); err != nil {
-	//	logger.Fatal("viper.ReadInConfig(%s) error: %s", filepath, err)
-	//}
-
-	//config := &Config{}
-	//if err := viper.Unmarshal(&config); err != nil {
-	//	logger.Fatal(err.Error())
-	//}
 
 	// 读取配置文件内容
 	data, err := os.ReadFile(filepath)

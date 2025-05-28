@@ -17,12 +17,20 @@ require (
 	github.com/2997215859/goenv v0.0.0-20250127093738-ddb38d5f6d5c // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
 	github.com/apache/thrift v0.14.2 // indirect
+	github.com/dromara/carbon/v2 v2.6.7 // indirect
+	github.com/gobuffalo/envy v1.7.0 // indirect
+	github.com/gobuffalo/packd v0.3.0 // indirect
+	github.com/gobuffalo/packr v1.30.1 // indirect
+	github.com/golang-module/carbon v1.7.3 // indirect
+	github.com/golang-module/carbon/v2 v2.6.7 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
+	github.com/joho/godotenv v1.3.0 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible // indirect
 	github.com/lestrrat-go/strftime v1.1.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/rogpeppe/go-internal v1.3.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.22.0 // indirect

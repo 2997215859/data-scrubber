@@ -2,13 +2,22 @@ package main
 
 import (
 	"data-scrubber/biz/service"
+	"data-scrubber/biz/utils"
 	"data-scrubber/config"
 	logger "github.com/2997215859/golog"
+	"github.com/golang-module/carbon/v2"
 	"github.com/spf13/pflag"
+	"path/filepath"
 )
 
-//TIP <p>To run your code, right-click the code and select <b>Run</b>.</p> <p>Alternatively, click
-// the <icon src="AllIcons.Actions.Execute"/> icon in the gutter and select the <b>Run</b> menu item from here.</p>
+func init() {
+	carbon.SetDefault(carbon.Default{
+		Layout:       carbon.RFC3339Layout,
+		Timezone:     carbon.PRC,
+		WeekStartsAt: carbon.Sunday,
+		Locale:       "zh-CN",
+	})
+}
 
 func GetConfigFilePath() string {
 	// 定义命令行参数
@@ -23,7 +32,27 @@ func main() {
 
 	config.PrintVersionInfo()
 
-	for _, date := range cfg.DateList {
+	startDate := carbon.Parse(cfg.DateStart).StartOfDay()
+	if startDate.IsInvalid() {
+		logger.Error("cfg.DateStart(%s) is invalid", cfg.DateStart)
+		return
+	}
+	endDate := carbon.Parse(cfg.DateEnd).StartOfDay()
+	if endDate.IsInvalid() {
+		logger.Error("cfg.DateEnd(%s) is invalid", cfg.DateEnd)
+		return
+	}
+
+	for currentDate := startDate; currentDate.Lte(endDate); currentDate = currentDate.AddDay() {
+		date := currentDate.Format("Ymd")
+		// 检查当前天是否存在
+		dateDir := filepath.Join(cfg.SrcDir, date)
+		if !utils.Exists(dateDir) {
+			logger.Warn("date(%s) not exists", date)
+			continue
+		}
+
+		// 打印当前日期
 		logger.Info("Process Date(%s) Begin", date)
 		if err := service.MergeRawTrade(cfg.SrcDir, cfg.DstDir, date); err != nil {
 			logger.Error("date(%s) MergeRawTrade error: %v", date, err)
