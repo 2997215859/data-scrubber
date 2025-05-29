@@ -55,18 +55,16 @@ func main() {
 		}
 
 		if slices.Contains(cfg.DataTypeList, constdef.DataTypeSnapshot) {
-			snapshotDstDir := filepath.Join(cfg.SrcDir, date, constdef.DataTypeSnapshot)
 			logger.Info("Process Date(%s) Snapshot Begin", date)
-			if err := service.MergeRawSnapshot(cfg.SrcDir, snapshotDstDir, date); err != nil {
+			if err := service.MergeRawSnapshot(cfg.SrcDir, cfg.DstDir, date); err != nil {
 				logger.Error("date(%s) MergeRawSnapshot error: %v", date, err)
 			}
 			logger.Info("Process Date(%s) Snapshot End", date)
 		}
 
 		if slices.Contains(cfg.DataTypeList, constdef.DataTypeTrade) {
-			tradeDstDir := filepath.Join(cfg.SrcDir, date, constdef.DataTypeTrade)
 			logger.Info("Process Date(%s) Trade Begin", date)
-			if err := service.MergeRawTrade(cfg.SrcDir, tradeDstDir, date); err != nil {
+			if err := service.MergeRawTrade(cfg.SrcDir, cfg.DstDir, date); err != nil {
 				logger.Error("date(%s) MergeRawTrade error: %v", date, err)
 			}
 			logger.Info("Process Date(%s) Trade End", date)

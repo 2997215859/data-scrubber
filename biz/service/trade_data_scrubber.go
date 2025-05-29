@@ -215,6 +215,8 @@ func SzRawTrade2TradeList(date string, rawList []*model.SzRawTrade) ([]*model.Tr
 // ==== 合并 trade
 
 func MergeRawTrade(srcDir string, dstDir string, date string) error {
+	dstDir = filepath.Join(dstDir, date, constdef.DataTypeTrade)
+
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
@@ -265,7 +267,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 
 	tradeMap := GetMapTrade(tradeList)
 	logger.Info("Write StockTrade.parquet Begin")
-	if err := WriteStockParquet(dstDir, date, tradeMap); err != nil {
+	if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
 		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
 	}
 	logger.Info("Write StockTrade.parquet End")
@@ -313,12 +315,11 @@ func GetMapTrade(tradeList []*model.Trade) map[string][]*model.Trade {
 }
 
 func WriteTrade(dstDir string, date string, tradeList []*model.Trade) error {
-	dstDir = filepath.Join(dstDir, date)
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
 
-	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_trade.gz", date))
+	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_trade.csv.gz", date))
 
 	file, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
@@ -335,8 +336,7 @@ func WriteTrade(dstDir string, date string, tradeList []*model.Trade) error {
 	return nil
 }
 
-func WriteParquet(dstDir string, date string, tradeList []*model.Trade) error {
-	dstDir = filepath.Join(dstDir, date)
+func WriteTradeParquet(dstDir string, date string, tradeList []*model.Trade) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
@@ -368,8 +368,7 @@ func WriteParquet(dstDir string, date string, tradeList []*model.Trade) error {
 	return nil
 }
 
-func WriteStockParquet(dstDir string, date string, mapTrader map[string][]*model.Trade) error {
-	dstDir = filepath.Join(dstDir, date)
+func WriteStockTradeParquet(dstDir string, date string, mapTrader map[string][]*model.Trade) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
