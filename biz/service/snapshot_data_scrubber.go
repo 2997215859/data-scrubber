@@ -986,18 +986,18 @@ func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
 	logger.Info("Convert All Raw Snapshot End")
 
 	// 写入
-	logger.Info("Write Trade.gz Begin")
-	if err := WriteSnapshotGz(dstDir, date, list); err != nil {
-		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	}
-	logger.Info("Write Trade.gz End")
-
-	//snapshotMap := GetMapSnapshot(list)
-	//logger.Info("Write StockSnapshot.parquet Begin")
-	//if err := WriteSnapshotParquet(dstDir, date, snapshotMap); err != nil {
-	//	return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	//logger.Info("Write Trade.gz Begin")
+	//if err := WriteSnapshotGz(dstDir, date, list); err != nil {
+	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
 	//}
-	//logger.Info("Write StockSnapshot.parquet End")
+	//logger.Info("Write Trade.gz End")
+
+	snapshotMap := GetMapSnapshot(list)
+	logger.Info("Write StockSnapshot.parquet Begin")
+	if err := WriteSnapshotParquet(dstDir, date, snapshotMap); err != nil {
+		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	}
+	logger.Info("Write StockSnapshot.parquet End")
 	return nil
 }
 
