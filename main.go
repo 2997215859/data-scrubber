@@ -54,6 +54,7 @@ func main() {
 			continue
 		}
 
+		// rootdir / snapshot / datedir / date_snapshot.csv
 		if slices.Contains(cfg.DataTypeList, constdef.DataTypeSnapshot) {
 			logger.Info("Process Date(%s) Snapshot Begin", date)
 			if err := service.MergeRawSnapshot(cfg.SrcDir, cfg.DstDir, date); err != nil {

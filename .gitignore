@@ -4,3 +4,4 @@
 **testdata**
 *.parquet
 *.csv
+.DS_Store

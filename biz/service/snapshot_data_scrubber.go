@@ -948,7 +948,7 @@ func SzRawSnapshot2SnapshotList(date string, rawList []*model.SzRawSnapshot) ([]
 // ==== 合并 Snapshot
 
 func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
-	dstDir = filepath.Join(dstDir, date, constdef.DataTypeSnapshot)
+	dstDir = filepath.Join(dstDir, constdef.DataTypeSnapshot, date)
 
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_MarketData.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_28_0.csv.zip", date))

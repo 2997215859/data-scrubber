@@ -215,7 +215,7 @@ func SzRawTrade2TradeList(date string, rawList []*model.SzRawTrade) ([]*model.Tr
 // ==== 合并 trade
 
 func MergeRawTrade(srcDir string, dstDir string, date string) error {
-	dstDir = filepath.Join(dstDir, date, constdef.DataTypeTrade)
+	dstDir = filepath.Join(dstDir, constdef.DataTypeTrade, date)
 
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
