@@ -8,6 +8,7 @@ require (
 	github.com/2997215859/golog v0.0.0-20250403123747-937295d0defa
 	github.com/gocarina/gocsv v0.0.0-20240520201108-78e41c74b4b1
 	github.com/golang-module/carbon/v2 v2.6.7
+	github.com/montanaflynn/stats v0.7.1
 	github.com/samber/lo v1.50.0
 	github.com/spf13/pflag v1.0.6
 	github.com/xitongsys/parquet-go v1.6.2
@@ -23,7 +24,6 @@ require (
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible // indirect
 	github.com/lestrrat-go/strftime v1.1.0 // indirect
-	github.com/montanaflynn/stats v0.7.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
