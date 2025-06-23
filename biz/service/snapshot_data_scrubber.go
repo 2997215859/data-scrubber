@@ -570,7 +570,12 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 
 	priceLimit, err := GetStockLimit(instrumentId)
 	if err != nil {
-		return nil, errorx.NewError("GetStockLimit(%s) error: %v", instrumentId, err)
+		logger.Error("GetStockLimit(%s) error: %v", instrumentId, err)
+		priceLimit = &PriceLimit{
+			InstrumentId: instrumentId,
+			HighLimit:    0.0,
+			LowLimit:     0.0,
+		}
 	}
 
 	res := &model.Snapshot{
