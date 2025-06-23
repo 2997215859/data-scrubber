@@ -32,6 +32,8 @@ func GetConfigFilePath() string {
 func main() {
 	cfg := config.InitConfig(GetConfigFilePath())
 
+	service.InitTuShare()
+
 	config.PrintVersionInfo()
 
 	startDate := carbon.Parse(cfg.DateStart).StartOfDay()

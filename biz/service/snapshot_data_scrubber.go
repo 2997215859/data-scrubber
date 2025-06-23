@@ -12,6 +12,7 @@ import (
 	logger "github.com/2997215859/golog"
 	"github.com/gocarina/gocsv"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -65,6 +66,7 @@ func ManualReadShRawSnapshot(filepath string) ([]*model.ShRawSnapshot, error) {
 	// 验证必要的标题是否存在
 	requiredHeaders := []string{
 		"UpdateTime", "SecurityID", "ImageStatus", "PreCloPrice", "OpenPrice",
+		"WarUpperPri", "WarLowerPri",
 		"HighPrice", "LowPrice", "LastPrice", "ClosePrice", "InstruStatus",
 		"TradNumber", "TradVolume", "Turnover", "TotalBidVol", "WAvgBidPri",
 		"AltWAvgBidPri", "TotalAskVol", "WAvgAskPri", "AltWAvgAskPri", "EtfBuyNumber",
@@ -148,6 +150,18 @@ func ManualReadShRawSnapshot(filepath string) ([]*model.ShRawSnapshot, error) {
 		}
 
 		if err := parseFloat64Field(fields, headerIndex, "ClosePrice", &snapshot.ClosePrice); err != nil {
+			logger.Warn("警告: 第 %d 行 ClosePrice 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		if err := parseFloat64Field(fields, headerIndex, "WarLowerPri", &snapshot.WarLowerPri); err != nil {
+			logger.Warn("警告: 第 %d 行 LastPrice 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		if err := parseFloat64Field(fields, headerIndex, "WarUpperPri", &snapshot.WarUpperPri); err != nil {
 			logger.Warn("警告: 第 %d 行 ClosePrice 解析错误: %v，跳过该行", lineNum, err)
 			lineNum++
 			continue
@@ -508,6 +522,37 @@ func ManualReadShRawSnapshot(filepath string) ([]*model.ShRawSnapshot, error) {
 	return snapshots, nil
 }
 
+// 计算涨跌停价格
+func CalculateLimitPrices(instrumentId string, preClose float64) (highLimit, lowLimit float64) {
+	// 处理停牌场景
+	//if snapshot.InstruStatus != "Normal" {
+	//	return math.NaN(), math.NaN()
+	//}
+
+	// 判断证券类型（主板/ST/科创板等）
+	var ratio float64
+	if strings.HasPrefix(instrumentId, "60") { // 主板股票
+		if strings.Contains(instrumentId, "ST") {
+			ratio = 0.05 // ST 股票 5%
+		} else {
+			ratio = 0.10 // 主板非 ST 10%
+		}
+	} else if strings.HasPrefix(instrumentId, "68") { // 科创板
+		ratio = 0.20 // 科创板 20%
+	}
+
+	// 核心计算（四舍五入到小数点后 2 位）
+	highLimit = math.Round(preClose*(1+ratio)*100) / 100
+	lowLimit = math.Round(preClose*(1-ratio)*100) / 100
+
+	// 新股/特殊规则单独处理（示例逻辑，需补充）
+	//if isNewStock(snapshot.InstrumentId) {
+	//	return handleNewStockLimits(snapshot.PreClose)
+	//}
+
+	return highLimit, lowLimit
+}
+
 func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapshot, error) {
 	updateTimestamp, err := utils.TimeToNano(date, v.UpdateTime)
 	if err != nil {
@@ -519,8 +564,17 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
 
+	//highLimit, lowLimit := CalculateLimitPrices(v.SecurityID, v.PreCloPrice)
+
+	instrumentId := fmt.Sprintf("%s.SH", v.SecurityID)
+
+	priceLimit, err := GetStockLimit(instrumentId)
+	if err != nil {
+		return nil, errorx.NewError("GetStockLimit(%s) error: %v", instrumentId, err)
+	}
+
 	res := &model.Snapshot{
-		InstrumentId:    fmt.Sprintf("%s.SH", v.SecurityID),
+		InstrumentId:    instrumentId,
 		UpdateTimestamp: updateTimestamp,
 		Last:            v.LastPrice,
 		PreClose:        v.PreCloPrice,
@@ -531,6 +585,8 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 		TradeNumber:     v.TradNumber,
 		TradeVolume:     int64(v.TradVolume),
 		TradeTurnover:   v.Turnover,
+		HighLimit:       priceLimit.HighLimit,
+		LowLimit:        priceLimit.LowLimit,
 		BidVolumeList: utils.Float64ToInt64([]float64{
 			v.BidVolume1, v.BidVolume2, v.BidVolume3, v.BidVolume4, v.BidVolume5,
 			v.BidVolume6, v.BidVolume7, v.BidVolume8, v.BidVolume9, v.BidVolume10,
@@ -616,8 +672,9 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 	// 验证必要的标题是否存在
 	requiredHeaders := []string{
 		"UpdateTime", "SecurityID", "PreCloPrice", "TurnNum", "Volume", "Turnover", "LastPrice",
-		"OpenPrice", "HighPrice", "LowPrice", "TotalBidQty", "TotalOfferQty", "AskPrice1",
-		"AskVolume1", "BidPrice1", "BidVolume1", "NumOrdersB1", "NumOrdersS1", "LocalTime", "SeqNo",
+		"OpenPrice", "HighPrice", "LowPrice", "TotalBidQty", "TotalOfferQty",
+		"HighLimitPrice", "LowLimitPrice",
+		"AskPrice1", "AskVolume1", "BidPrice1", "BidVolume1", "NumOrdersB1", "NumOrdersS1", "LocalTime", "SeqNo",
 		"AskPrice2", "AskVolume2", "BidPrice2", "BidVolume2", "NumOrdersB2", "NumOrdersS2",
 		"AskPrice3", "AskVolume3", "BidPrice3", "BidVolume3", "NumOrdersB3", "NumOrdersS3",
 		"AskPrice4", "AskVolume4", "BidPrice4", "BidVolume4", "NumOrdersB4", "NumOrdersS4",
@@ -720,6 +777,18 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 		}
 
 		if err := parseInt64Field(fields, headerIndex, "TotalOfferQty", &snapshot.TotalOfferQty); err != nil {
+			logger.Warn("警告: 第 %d 行 TotalOfferQty 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		if err := parseFloat64Field(fields, headerIndex, "HighLimitPrice", &snapshot.HighLimitPrice); err != nil {
+			logger.Warn("警告: 第 %d 行 TotalBidQty 解析错误: %v，跳过该行", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		if err := parseFloat64Field(fields, headerIndex, "LowLimitPrice", &snapshot.LowLimitPrice); err != nil {
 			logger.Warn("警告: 第 %d 行 TotalOfferQty 解析错误: %v，跳过该行", lineNum, err)
 			lineNum++
 			continue
@@ -907,6 +976,8 @@ func SzRawSnapshot2Snapshot(date string, v *model.SzRawSnapshot) (*model.Snapsho
 		TradeNumber:     v.TurnNum,
 		TradeVolume:     v.Volume,
 		TradeTurnover:   v.Turnover,
+		HighLimit:       v.HighLimitPrice,
+		LowLimit:        v.LowLimitPrice,
 		BidVolumeList: []int64{
 			v.BidVolume1, v.BidVolume2, v.BidVolume3, v.BidVolume4, v.BidVolume5,
 			v.BidVolume6, v.BidVolume7, v.BidVolume8, v.BidVolume9, v.BidVolume10,
@@ -948,6 +1019,11 @@ func SzRawSnapshot2SnapshotList(date string, rawList []*model.SzRawSnapshot) ([]
 // ==== 合并 Snapshot
 
 func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
+	// 刷新一下 turshare 数据
+	if err := UpdateTuShareDailyLimit(date); err != nil {
+		return err
+	}
+
 	dstDir = filepath.Join(dstDir, constdef.DataTypeSnapshot, date)
 
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_MarketData.csv.zip", date))

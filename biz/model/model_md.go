@@ -43,6 +43,9 @@ type Snapshot struct {
 	TradeVolume   int64   `parquet:"name=TradeVolume, type=INT64"`    // 成交总量
 	TradeTurnover float64 `parquet:"name=TradeTurnover, type=DOUBLE"` // 成交总金额
 
+	HighLimit float64 `parquet:"name=HighLimit, type=DOUBLE"`
+	LowLimit  float64 `parquet:"name=LowLimit, type=DOUBLE"`
+
 	BidVolumeList []int64   `parquet:"name=BidVolumeList, type=MAP, convertedtype=LIST, valuetype=INT64"`
 	BidPriceList  []float64 `parquet:"name=BidPriceList, type=MAP, convertedtype=LIST, valuetype=DOUBLE"`
 	AskVolumeList []int64   `parquet:"name=AskVolumeList, type=MAP, convertedtype=LIST, valuetype=INT64"`

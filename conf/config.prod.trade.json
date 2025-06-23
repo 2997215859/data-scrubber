@@ -1,0 +1,7 @@
+{
+  "src_dir": "/mnt/local/tick_stock",
+  "dst_dir": "/mnt/local/clean_stock_data",
+  "date_start": "20240102",
+  "date_end": "20250620",
+  "data_type_list": [ "trade" ]
+}
