@@ -276,10 +276,10 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 
 func SortTradeRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
 	// 分别对 a 和 b 排序
-	sort.Slice(a, func(i, j int) bool {
+	sort.SliceStable(a, func(i, j int) bool {
 		return a[i].LocalTimestamp < a[j].LocalTimestamp
 	})
-	sort.Slice(b, func(i, j int) bool {
+	sort.SliceStable(b, func(i, j int) bool {
 		return b[i].LocalTimestamp < b[j].LocalTimestamp
 	})
 
