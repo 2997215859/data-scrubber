@@ -533,3 +533,154 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 
 	return trades, nil
 }
+
+func ManualReadOldShRawTrade(filepath string) ([]*model.OldShRawTrade, error) {
+	// 打开ZIP文件
+	zipReader, err := zip.OpenReader(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("打开ZIP文件失败: %v", err)
+	}
+	defer zipReader.Close()
+
+	// 查找第一个CSV文件（不限制必须只有一个文件，匹配第一个.csv即可）
+	if len(zipReader.File) != 1 {
+		return nil, errorx.NewError("zipReader.File len is not 1")
+	}
+	csvFile := zipReader.File[0]
+
+	// 打开ZIP中的CSV文件
+	rc, err := csvFile.Open()
+	if err != nil {
+		return nil, fmt.Errorf("打开CSV文件失败: %v", err)
+	}
+	defer rc.Close()
+
+	// 创建文本读取器
+	reader := bufio.NewReader(rc)
+
+	// 读取标题行
+	headerLine, err := reader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("读取标题行失败: %v", err)
+	}
+	headerLine = strings.TrimSpace(headerLine)
+
+	// 处理标题行，去除行末可能的逗号并分割字段
+	headers := splitLine(headerLine)
+
+	// 映射标题到列索引
+	headerIndex := make(map[string]int)
+	for i, header := range headers {
+		headerIndex[strings.TrimSpace(header)] = i
+	}
+
+	// 定义SH数据所需的必填标题
+	requiredHeaders := []string{
+		"DataStatus", "TradeIndex", "TradeChan", "SecurityID", "TradTime",
+		"TradPrice", "TradVolume", "TradeMoney", "TradeBuyNo", "TradeSellNo",
+		"TradeBSFlag", "BizIndex", "LocalTime", "SeqNo",
+	}
+
+	// 验证必填标题是否存在
+	for _, header := range requiredHeaders {
+		if _, exists := headerIndex[header]; !exists {
+			return nil, errorx.NewError("CSV文件缺少必要标题: %s", header)
+		}
+	}
+
+	// 存储解析结果
+	var trades []*model.OldShRawTrade
+	lineNum := 2 // 标题行是第1行，数据从第2行开始
+
+	// 逐行读取数据行
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			if err == io.EOF {
+				break // 正常结束
+			}
+			return nil, errorx.NewError("读取第 %d 行失败: %v", lineNum, err)
+		}
+
+		// 处理当前行：去除首尾空格、末尾逗号，并分割字段
+		fields := splitLine(strings.TrimSpace(line))
+
+		// 检查字段数量是否足够
+		if len(fields) < len(requiredHeaders) {
+			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过. 错误行内容=%s", lineNum, len(fields), len(requiredHeaders), line)
+			lineNum++
+			continue
+		}
+
+		// 创建新的ShRawTrade实例
+		trade := &model.OldShRawTrade{}
+
+		// 解析各字段（使用标题索引，带错误处理）
+		if err := parseIntField(fields, headerIndex, "DataStatus", &trade.DataStatus); err != nil {
+			logger.Info("警告: 第 %d 行 DataStatus 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+		if err := parseInt64Field(fields, headerIndex, "TradeIndex", &trade.TradeIndex); err != nil {
+			logger.Info("警告: 第 %d 行 TradeIndex 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+		if err := parseIntField(fields, headerIndex, "TradeChan", &trade.TradeChan); err != nil {
+			logger.Info("警告: 第 %d 行 TradeChan 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		trade.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
+		trade.TradTime = strings.TrimSpace(fields[headerIndex["TradTime"]])
+
+		if err := parseFloat64Field(fields, headerIndex, "TradPrice", &trade.TradPrice); err != nil {
+			logger.Info("警告: 第 %d 行 TradPrice 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+		if err := parseFloat64Field(fields, headerIndex, "TradVolume", &trade.TradVolume); err != nil {
+			logger.Info("警告: 第 %d 行 TradVolume 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+		if err := parseFloat64Field(fields, headerIndex, "TradeMoney", &trade.TradeMoney); err != nil {
+			logger.Info("警告: 第 %d 行 TradeMoney 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		if err := parseInt64Field(fields, headerIndex, "TradeBuyNo", &trade.TradeBuyNo); err != nil {
+			logger.Error("警告: 第 %d 行 TradeBuyNo 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+		if err := parseInt64Field(fields, headerIndex, "TradeSellNo", &trade.TradeSellNo); err != nil {
+			logger.Error("警告: 第 %d 行 TradeSellNo 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		if err := parseInt64Field(fields, headerIndex, "BizIndex", &trade.BizIndex); err != nil {
+			logger.Error("警告: 第 %d 行 BizIndex 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		trade.TradeBSFlag = strings.TrimSpace(fields[headerIndex["TradeBSFlag"]])
+		trade.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+
+		if err := parseInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
+			logger.Error("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
+			lineNum++
+			continue
+		}
+
+		// 添加到结果列表
+		trades = append(trades, trade)
+		lineNum++
+	}
+
+	return trades, nil
+}

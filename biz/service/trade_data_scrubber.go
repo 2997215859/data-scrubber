@@ -9,6 +9,8 @@ import (
 	"data-scrubber/biz/utils"
 	"fmt"
 	logger "github.com/2997215859/golog"
+	"github.com/golang-module/carbon/v2"
+
 	"github.com/gocarina/gocsv"
 	"os"
 	"path/filepath"
@@ -94,11 +96,59 @@ func ShRawTrade2Trade(date string, v *model.ShRawTrade) (*model.Trade, error) {
 
 	return res, nil
 }
+func OldShRawTrade2Trade(date string, v *model.OldShRawTrade) (*model.Trade, error) {
+	tradeTimestamp, err := utils.TimeToNano(date, v.TradTime)
+	if err != nil {
+		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TradTime, err)
+	}
+
+	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	if err != nil {
+		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
+	}
+
+	direction := ShRaw2Direction(v.TradeBSFlag)
+	//if direction == constdef.DirectionUnknown {
+	//	return nil, errorx.NewError("ShRaw2Direction(%s) error", v.TickBSFlag)
+	//}
+
+	res := &model.Trade{
+		InstrumentId:   fmt.Sprintf("%s.SH", v.SecurityID),
+		TradeTimestamp: tradeTimestamp,
+		TradeId:        v.BizIndex,
+		Price:          v.TradPrice,
+		Volume:         int64(v.TradVolume),
+		Turnover:       v.TradeMoney,
+		Direction:      direction,
+		BuyOrderId:     v.TradeBuyNo,
+		SellOrderId:    v.TradeSellNo,
+		LocalTimestamp: localTimestamp,
+	}
+
+	return res, nil
+}
 
 func ShRawTrade2TradeList(date string, rawList []*model.ShRawTrade) ([]*model.Trade, error) {
 	var res []*model.Trade
 	for _, v := range rawList {
 		trade, err := ShRawTrade2Trade(date, v)
+		if err != nil {
+			return nil, err
+		}
+		if trade == nil { // 说明不是所需要的数据，但也不应该报 error
+			continue
+		}
+
+		res = append(res, trade)
+	}
+
+	return res, nil
+}
+
+func OldShRawTrade2TradeList(date string, rawList []*model.OldShRawTrade) ([]*model.Trade, error) {
+	var res []*model.Trade
+	for _, v := range rawList {
+		trade, err := OldShRawTrade2Trade(date, v)
 		if err != nil {
 			return nil, err
 		}
@@ -214,25 +264,53 @@ func SzRawTrade2TradeList(date string, rawList []*model.SzRawTrade) ([]*model.Tr
 
 // ==== 合并 trade
 
+var shNewTradeStartDay = carbon.Parse("20231204").StartOfDay()
+
 func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	dstDir = filepath.Join(dstDir, constdef.DataTypeTrade, date)
 
-	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
 	// 读取和处理上海数据
-	logger.Info("Read Sh Raw Trade Begin")
-	shRawTradeList, err := ManualReadShRawTrade(shFilepath)
-	if err != nil {
-		return errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
+	currentDate := carbon.Parse(date).StartOfDay()
+	if currentDate.IsInvalid() {
+		return errorx.NewError("date(%s) is invalid", date)
 	}
-	logger.Info("Read Sh Raw Trade End")
 
-	shTradeList, err := ShRawTrade2TradeList(date, shRawTradeList)
-	if err != nil {
-		return errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
-	}
-	logger.Info("Convert Sh Raw Trade End")
+	shTradeList, err := func() ([]*model.Trade, error) {
+		if currentDate.Lt(shNewTradeStartDay) {
+			shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_Transaction.csv.zip", date))
+
+			logger.Info("Read Old Sh Raw Trade Begin")
+			OldShRawTradeList, err := ManualReadOldShRawTrade(shFilepath)
+			if err != nil {
+				return nil, errorx.NewError("ManualReadOldShRawTrade(%s) error: %s", shFilepath, err)
+			}
+			logger.Info("Read Old Sh Raw Trade End")
+
+			shTradeList, err := OldShRawTrade2TradeList(date, OldShRawTradeList)
+			if err != nil {
+				return nil, errorx.NewError("OldShRawTrade2TradeList(%s) error: %s", shFilepath, err)
+			}
+			logger.Info("Convert Old Sh Raw Trade End")
+			return shTradeList, nil
+		} else {
+			shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
+			logger.Info("Read Sh Raw Trade Begin")
+			shRawTradeList, err := ManualReadShRawTrade(shFilepath)
+			if err != nil {
+				return nil, errorx.NewError("ReadShRawTrade(%s) error: %s", shFilepath, err)
+			}
+			logger.Info("Read Sh Raw Trade End")
+
+			shTradeList, err := ShRawTrade2TradeList(date, shRawTradeList)
+			if err != nil {
+				return nil, errorx.NewError("ShRawTrade2Trade(%s) error: %s", shFilepath, err)
+			}
+			logger.Info("Convert Sh Raw Trade End")
+			return shTradeList, nil
+		}
+	}()
 
 	// 读取和处理深圳数据
 	logger.Info("Read Sz Raw Trade Begin")

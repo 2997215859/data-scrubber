@@ -10,3 +10,12 @@ bash scripts/build.sh
 ```
 
 ```
+
+
+## 
+
+mock data acquire
+
+```bash
+head -n 4555000 20231108_Transaction.csv | tail -n +4550000
+```

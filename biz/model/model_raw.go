@@ -258,3 +258,32 @@ type SzRawTrade struct {
 	LocalTime        string
 	SeqNo            int64
 }
+
+/**
+Transaction.csv.zip
+
+DataStatus,TradeIndex,TradeChan,SecurityID,TradTime,TradPrice,TradVolume,TradeMoney,TradeBuyNo,TradeSellNo,TradeBSFlag,BizIndex,LocalTime,SeqNo
+0,1,1,601360,09:25:00.000,9.340,900.000,8406.00000,186085,203555,N,2767,09:25:00.176,1,
+0,2,1,601360,09:25:00.000,9.340,100.000,934.00000,194706,203555,N,2768,09:25:00.176,2,
+0,3,1,601360,09:25:00.000,9.340,700.000,6538.00000,256622,203555,N,2769,09:25:00.176,3,
+0,4,1,601360,09:25:00.000,9.340,2800.000,26152.00000,73787,203555,N,2770,09:25:00.176,4,
+0,5,1,601360,09:25:00.000,9.340,800.000,7472.00000,73787,212050,N,2771,09:25:00.176,5,
+*/
+
+// 在 20231204 之后（含）是新数据格式，在此之前是旧格式
+type OldShRawTrade struct {
+	DataStatus  int     // 数据状态
+	TradeIndex  int64   // 交易索引
+	TradeChan   int     // 交易通道
+	SecurityID  string  // 证券代码
+	TradTime    string  // 交易时间
+	TradPrice   float64 // 交易价格
+	TradVolume  float64 // 交易成交量
+	TradeMoney  float64 // 交易金额
+	TradeBuyNo  int64   // 买方委托号
+	TradeSellNo int64   // 卖方委托号
+	TradeBSFlag string  // 买卖标志(N可能表示中性或其他)
+	BizIndex    int64   // 业务索引
+	LocalTime   string  // 本地时间
+	SeqNo       int64   // 序列号
+}
