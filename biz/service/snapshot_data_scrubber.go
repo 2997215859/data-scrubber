@@ -1066,19 +1066,20 @@ func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
 	list := SortSnapshotRaw(shList, szList)
 	logger.Info("Convert All Raw Snapshot End")
 
-	// 写入
-	//logger.Info("Write Trade.gz Begin")
-	//if err := WriteSnapshotGz(dstDir, date, list); err != nil {
-	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	//}
-	//logger.Info("Write Trade.gz End")
-
 	snapshotMap := GetMapSnapshot(list)
-	logger.Info("Write StockSnapshot.parquet Begin")
-	if err := WriteSnapshotParquet(dstDir, date, snapshotMap); err != nil {
-		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+
+	// 写入
+	logger.Info("Write StockSnapshot.gz Begin")
+	if err := WriteSnapshotGz(dstDir, date, snapshotMap); err != nil {
+		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
 	}
-	logger.Info("Write StockSnapshot.parquet End")
+	logger.Info("Write StockSnapshot.gz End")
+
+	//logger.Info("Write StockSnapshot.parquet Begin")
+	//if err := WriteSnapshotParquet(dstDir, date, snapshotMap); err != nil {
+	//	return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	//}
+	//logger.Info("Write StockSnapshot.parquet End")
 	return nil
 }
 
@@ -1155,24 +1156,27 @@ func WriteSnapshotParquet(dstDir string, date string, mapSnapshot map[string][]*
 	return nil
 }
 
-func WriteSnapshotGz(dstDir string, date string, list []*model.Snapshot) error {
+func WriteSnapshotGz(dstDir string, date string, mapSnapshot map[string][]*model.Snapshot) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
 
-	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_snapshot.csv.gz", date))
+	for instrumentId, list := range mapSnapshot {
+		filePath := filepath.Join(dstDir, fmt.Sprintf("%s_snapshot_%s.csv.gz", date, instrumentId))
 
-	file, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		return errorx.NewError("open file(%s): %v", filepath, err)
+		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			return errorx.NewError("open file(%s): %v", filePath, err)
+		}
+		defer file.Close()
+
+		gzWriter := gzip.NewWriter(file)
+		defer gzWriter.Close()
+
+		if err := gocsv.Marshal(&list, gzWriter); err != nil {
+			return errorx.NewError("filePath(%s) gocsv.Marshal error: %v", filePath, err)
+		}
 	}
-	defer file.Close()
 
-	gzWriter := gzip.NewWriter(file)
-	defer gzWriter.Close()
-
-	if err := gocsv.Marshal(&list, gzWriter); err != nil {
-		return errorx.NewError("filepath(%s) gocsv.Marshal error: %v", filepath, err)
-	}
 	return nil
 }

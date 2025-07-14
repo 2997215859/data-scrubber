@@ -330,12 +330,6 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	tradeList := SortTradeRaw(shTradeList, szTradeList)
 	logger.Info("Convert All Raw Trade End")
 
-	// 写入
-	//logger.Info("Write Trade.gz Begin")
-	//if err := WriteTrade(dstDir, date, tradeList); err != nil {
-	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	//}
-	//logger.Info("Write Trade.gz End")
 	//
 	//logger.Info("Write Trade.parquet Begin")
 	//if err := WriteParquet(dstDir, date, tradeList); err != nil {
@@ -344,11 +338,20 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	//logger.Info("Write Trade.parquet End")
 
 	tradeMap := GetMapTrade(tradeList)
-	logger.Info("Write StockTrade.parquet Begin")
-	if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
-		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+
+	// 写入
+	logger.Info("Write Trade.gz Begin")
+	if err := WriteTradeGz(dstDir, date, tradeMap); err != nil {
+		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
 	}
-	logger.Info("Write StockTrade.parquet End")
+	logger.Info("Write Trade.gz End")
+
+	//logger.Info("Write StockTrade.parquet Begin")
+	//if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
+	//	return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	//}
+	//logger.Info("Write StockTrade.parquet End")
+
 	return nil
 }
 
@@ -392,25 +395,28 @@ func GetMapTrade(tradeList []*model.Trade) map[string][]*model.Trade {
 	return res
 }
 
-func WriteTrade(dstDir string, date string, tradeList []*model.Trade) error {
+func WriteTradeGz(dstDir string, date string, mapTradeGz map[string][]*model.Trade) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
 	}
 
-	filepath := filepath.Join(dstDir, fmt.Sprintf("%s_trade.csv.gz", date))
+	for instrumentId, list := range mapTradeGz {
+		filePath := filepath.Join(dstDir, fmt.Sprintf("%s_trade_%s.csv.gz", date, instrumentId))
 
-	file, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
-	if err != nil {
-		return errorx.NewError("open file(%s): %v", filepath, err)
+		file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0755)
+		if err != nil {
+			return errorx.NewError("open file(%s): %v", filePath, err)
+		}
+		defer file.Close()
+
+		gzWriter := gzip.NewWriter(file)
+		defer gzWriter.Close()
+
+		if err := gocsv.Marshal(&list, gzWriter); err != nil {
+			return errorx.NewError("filePath(%s) gocsv.Marshal error: %v", filePath, err)
+		}
 	}
-	defer file.Close()
 
-	gzWriter := gzip.NewWriter(file)
-	defer gzWriter.Close()
-
-	if err := gocsv.Marshal(&tradeList, gzWriter); err != nil {
-		return errorx.NewError("filepath(%s) gocsv.Marshal error: %v", filepath, err)
-	}
 	return nil
 }
 
