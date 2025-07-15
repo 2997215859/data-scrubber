@@ -340,17 +340,17 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	tradeMap := GetMapTrade(tradeList)
 
 	// 写入
-	logger.Info("Write Trade.gz Begin")
-	if err := WriteTradeGz(dstDir, date, tradeMap); err != nil {
-		return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	}
-	logger.Info("Write Trade.gz End")
-
-	//logger.Info("Write StockTrade.parquet Begin")
-	//if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
-	//	return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	//logger.Info("Write Trade.gz Begin")
+	//if err := WriteTradeGz(dstDir, date, tradeMap); err != nil {
+	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
 	//}
-	//logger.Info("Write StockTrade.parquet End")
+	//logger.Info("Write Trade.gz End")
+
+	logger.Info("Write StockTrade.parquet Begin")
+	if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
+		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+	}
+	logger.Info("Write StockTrade.parquet End")
 
 	return nil
 }
