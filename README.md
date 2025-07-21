@@ -23,6 +23,6 @@ head -n 4555000 20231108_Transaction.csv | tail -n +4550000
 ```bash
 
 # daily data-scrubber
-0 18 * * 1-5 cd /home/leewind/mnt/workspace/ruiy/code/data-scrubber/dest; ./run.sh -d;
+30 18 * * 1-5 cd /home/leewind/mnt/workspace/ruiy/code/data-scrubber/dest; ./run.sh -d;
 
 ```
