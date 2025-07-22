@@ -75,7 +75,7 @@ fi
 # 检查参数数量是否为1且参数值是否为 -d
 if [ $# -eq 1 ] && [ "$1" = "-d" ]; then
     echo "即将执行: nohup $exe --config_file=conf/config.daily.json >nohup.out 2>&1 &"
-    nohup $exe >nohup.out 2>&1 &
+    nohup $exe --config_file=conf/config.daily.json >nohup.out 2>&1 &
     pid=$!  # 获取后台进程的PID
     echo "$pid" > "$pid_file"
     echo "程序已在后台执行，进程ID为: $pid，已保存到 $pid_file"
