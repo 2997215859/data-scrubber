@@ -8,6 +8,10 @@ import (
 
 var ts *gotushare.TuShare
 
+func GetTuShare() *gotushare.TuShare {
+	return ts
+}
+
 /*
 {"request_id":"1cc2e89a-1e9f-4ad4-ae84-ed4390eff364","code":0,"msg":"","data":{"fields":["ts_code","trade_date","pre_close","up_limit","down_limit"],"items":[["000001.SZ","20190625",13.69,15.06,12.32],["000002.SZ","20190625",28.13,30.94,25.32],["000004.SZ","20190625",22.86,25.15,20.57],["000005.SZ","20190625",3.17,3.49,2.85],["000006.SZ","20190625",5.58,6.14,5.02],["000007.SZ","20190625",7.04,7.74,6.34],["000008.SZ","20190625",3.89,4.28,3.5
 */
