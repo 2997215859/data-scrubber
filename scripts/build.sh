@@ -44,7 +44,7 @@ LDFLAGS="-X '$packageName.GitCommitSha1=$GIT_COMMIT_SHA1' \
          -X '$packageName.GitCommitSubject=$GIT_COMMIT_SUBJECT' \
          -X '$packageName.GitBranchName=$GIT_BRANCH_NAME'"
 
-go build -ldflags "$LDFLAGS" -o $dest/$name
+GOARCH=amd64 go build -ldflags "$LDFLAGS" -o $dest/$name
 
 cp -fr conf $dest
 cp -fr scripts/* $dest

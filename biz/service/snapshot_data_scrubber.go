@@ -568,6 +568,10 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 
 	instrumentId := fmt.Sprintf("%s.SH", v.SecurityID)
 
+	if utils.IsBStock(instrumentId) {
+		return nil, nil
+	}
+
 	priceLimit, err := GetStockLimit(instrumentId)
 	if err != nil {
 		logger.Error("GetStockLimit(%s) error: %v", instrumentId, err)
