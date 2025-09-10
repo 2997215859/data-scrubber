@@ -17,11 +17,11 @@ type TradeCalendarItem struct {
 	PretradeDate string `json:"pretrade_date,omitempty"` // str N	上一个交易日
 }
 
-func GetTradeCalendar() ([]*TradeCalendarItem, error) {
+func GetTradeCalendar(exchange string, startDate, endDate string) ([]*TradeCalendarItem, error) {
 	r := gotushare.TradeCalRequest{
-		Exchange:  "SSE",
-		StartDate: "20250101",
-		EndDate:   "20251231",
+		Exchange:  exchange,
+		StartDate: startDate,
+		EndDate:   endDate,
 	}
 
 	rsp, err := service.GetTuShare().TradeCal(r, gotushare.TradeCalItems{}.All())
@@ -46,7 +46,10 @@ func GetTradeCalendar() ([]*TradeCalendarItem, error) {
 
 func TestTradeCalendar(t *testing.T) {
 	service.InitTuShare()
-	res, nil := GetTradeCalendar()
+	res1, nil := GetTradeCalendar("SSE", "20250101", "20251231")
+	res2, nil := GetTradeCalendar("SZSE", "20250101", "20251231")
+
+	res1 = append(res1, res2...)
 
 	filename := "/Users/bytedance/workspace/code/data-scrubber/testdata/trade_calendar.csv"
 
@@ -57,7 +60,7 @@ func TestTradeCalendar(t *testing.T) {
 	}
 	defer file.Close()
 
-	err = gocsv.MarshalFile(&res, file) // Use this to save the CSV back to the file
+	err = gocsv.MarshalFile(&res1, file) // Use this to save the CSV back to the file
 	if err != nil {
 		logger.Error("Failed to Marshal file: %v", err)
 		return
