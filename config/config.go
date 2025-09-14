@@ -12,6 +12,7 @@ type Config struct {
 	DateStart    string   `json:"date_start"`
 	DateEnd      string   `json:"date_end"`
 	DataTypeList []string `json:"data_type_list"`
+	Sort         bool     `json:"sort"`
 }
 
 var Cfg *Config

@@ -8,6 +8,7 @@ import (
 	"data-scrubber/biz/errorx"
 	"data-scrubber/biz/model"
 	"data-scrubber/biz/utils"
+	"data-scrubber/config"
 	"fmt"
 	logger "github.com/2997215859/golog"
 	"github.com/gocarina/gocsv"
@@ -1089,12 +1090,14 @@ func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
 
 func SortSnapshotRaw(a []*model.Snapshot, b []*model.Snapshot) []*model.Snapshot {
 	// 分别对 a 和 b 排序
-	sort.SliceStable(a, func(i, j int) bool {
-		return a[i].LocalTimestamp < a[j].LocalTimestamp
-	})
-	sort.SliceStable(b, func(i, j int) bool {
-		return b[i].LocalTimestamp < b[j].LocalTimestamp
-	})
+	if config.Cfg.Sort {
+		sort.SliceStable(a, func(i, j int) bool {
+			return a[i].LocalTimestamp < a[j].LocalTimestamp
+		})
+		sort.SliceStable(b, func(i, j int) bool {
+			return b[i].LocalTimestamp < b[j].LocalTimestamp
+		})
+	}
 
 	// 双指针合并有序切片
 	result := make([]*model.Snapshot, 0, len(a)+len(b))
