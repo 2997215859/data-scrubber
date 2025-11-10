@@ -566,6 +566,9 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 	}
 
 	//highLimit, lowLimit := CalculateLimitPrices(v.SecurityID, v.PreCloPrice)
+	if utils.IsChinaStockCodeFirstChar(v.SecurityID) == false {
+		return nil, nil
+	}
 
 	instrumentId := fmt.Sprintf("%s.SH", v.SecurityID)
 
@@ -972,6 +975,10 @@ func SzRawSnapshot2Snapshot(date string, v *model.SzRawSnapshot) (*model.Snapsho
 	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
+	}
+
+	if utils.IsChinaStockCodeFirstChar(v.SecurityID) == false {
+		return nil, nil
 	}
 
 	res := &model.Snapshot{

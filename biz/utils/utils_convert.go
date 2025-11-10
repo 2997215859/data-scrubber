@@ -18,3 +18,14 @@ func IsBStock(code string) bool {
 	match, _ := regexp.MatchString(pattern, code)
 	return match
 }
+
+func IsChinaStockCodeFirstChar(code string) bool {
+	// 确保字符串至少有1位
+	if len(code) < 1 {
+		return false
+	}
+	// 取第一位字符判断
+	first := code[0]
+	// 沪市第一位是6，深市第一位是0或3
+	return first == '6' || first == '0' || first == '3'
+}
