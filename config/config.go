@@ -2,8 +2,9 @@ package config
 
 import (
 	"encoding/json"
-	logger "github.com/2997215859/golog"
 	"os"
+
+	logger "github.com/2997215859/golog"
 )
 
 type Config struct {
@@ -11,6 +12,7 @@ type Config struct {
 	DstDir       string   `json:"dst_dir"`
 	DateStart    string   `json:"date_start"`
 	DateEnd      string   `json:"date_end"`
+	DateList     []string `json:"date_list"`
 	DataTypeList []string `json:"data_type_list"`
 	Sort         bool     `json:"sort"`
 }
