@@ -7,7 +7,6 @@ import (
 	"data-scrubber/biz/model"
 	"encoding/csv"
 	"fmt"
-	logger "github.com/2997215859/golog"
 	"io"
 	"log"
 	"os"
@@ -15,6 +14,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	logger "github.com/2997215859/golog"
+
+	"github.com/golang-module/carbon/v2"
 )
 
 func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
@@ -534,7 +537,7 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 	return trades, nil
 }
 
-func ManualReadOldShRawTrade(filepath string) ([]*model.OldShRawTrade, error) {
+func ManualReadOldShRawTrade(filepath string, date *carbon.Carbon) ([]*model.OldShRawTrade, error) {
 	// 打开ZIP文件
 	zipReader, err := zip.OpenReader(filepath)
 	if err != nil {
@@ -574,11 +577,20 @@ func ManualReadOldShRawTrade(filepath string) ([]*model.OldShRawTrade, error) {
 		headerIndex[strings.TrimSpace(header)] = i
 	}
 
-	// 定义SH数据所需的必填标题
-	requiredHeaders := []string{
-		"DataStatus", "TradeIndex", "TradeChan", "SecurityID", "TradTime",
-		"TradPrice", "TradVolume", "TradeMoney", "TradeBuyNo", "TradeSellNo",
-		"TradeBSFlag", "BizIndex", "LocalTime", "SeqNo",
+	requiredHeaders := make([]string, 0)
+	if date.Lt(shBizIndexStartDay) {
+		// 沪市小于这个日期，是没有 BizIndex 的，这个 BizIndex 是这个日期之后才加的，先置为成 0
+		requiredHeaders = []string{
+			"DataStatus", "TradeIndex", "TradeChan", "SecurityID", "TradTime",
+			"TradPrice", "TradVolume", "TradeMoney", "TradeBuyNo", "TradeSellNo",
+			"TradeBSFlag", "LocalTime", "SeqNo",
+		}
+	} else {
+		requiredHeaders = []string{
+			"DataStatus", "TradeIndex", "TradeChan", "SecurityID", "TradTime",
+			"TradPrice", "TradVolume", "TradeMoney", "TradeBuyNo", "TradeSellNo",
+			"TradeBSFlag", "BizIndex", "LocalTime", "SeqNo",
+		}
 	}
 
 	// 验证必填标题是否存在
@@ -662,10 +674,12 @@ func ManualReadOldShRawTrade(filepath string) ([]*model.OldShRawTrade, error) {
 			continue
 		}
 
-		if err := parseInt64Field(fields, headerIndex, "BizIndex", &trade.BizIndex); err != nil {
-			logger.Error("警告: 第 %d 行 BizIndex 解析错误: %v，跳过", lineNum, err)
-			lineNum++
-			continue
+		if date.Gte(shBizIndexStartDay) {
+			if err := parseInt64Field(fields, headerIndex, "BizIndex", &trade.BizIndex); err != nil {
+				logger.Error("警告: 第 %d 行 BizIndex 解析错误: %v，跳过", lineNum, err)
+				lineNum++
+				continue
+			}
 		}
 
 		trade.TradeBSFlag = strings.TrimSpace(fields[headerIndex["TradeBSFlag"]])

@@ -9,13 +9,15 @@ import (
 	"data-scrubber/biz/utils"
 	"data-scrubber/config"
 	"fmt"
+
 	logger "github.com/2997215859/golog"
 	"github.com/golang-module/carbon/v2"
 
-	"github.com/gocarina/gocsv"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/gocarina/gocsv"
 )
 
 func ReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
@@ -266,6 +268,7 @@ func SzRawTrade2TradeList(date string, rawList []*model.SzRawTrade) ([]*model.Tr
 // ==== 合并 trade
 
 var shNewTradeStartDay = carbon.Parse("20231204").StartOfDay()
+var shBizIndexStartDay = carbon.Parse("20210426").StartOfDay()
 
 func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	dstDir = filepath.Join(dstDir, constdef.DataTypeTrade, date)
@@ -283,7 +286,7 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 			shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_Transaction.csv.zip", date))
 
 			logger.Info("Read Old Sh Raw Trade Begin")
-			OldShRawTradeList, err := ManualReadOldShRawTrade(shFilepath)
+			OldShRawTradeList, err := ManualReadOldShRawTrade(shFilepath, currentDate)
 			if err != nil {
 				return nil, errorx.NewError("ManualReadOldShRawTrade(%s) error: %s", shFilepath, err)
 			}
