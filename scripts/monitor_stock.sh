@@ -50,13 +50,17 @@ while true; do
         # 执行命令
         eval $COMMAND
         echo "生成行情命令执行完成"
-        exit 0
+#        exit 0
+        break
     else
         echo "文件 $DONE_FILE 不存在，$INTERVAL 秒后再次检查..."
         sleep $INTERVAL
     fi
 done
 
-COPYCOMAND="bash rsync_remote.sh --local-base /mnt/local/clean_stock_data --remote-hosts "192.168.31.107" --start-date $DATE_PARAM --end-date $DATE_PARAM"
+host_list="192.168.31.107"
+
+COPYCOMAND="bash rsync_remote.sh --local-base /mnt/local/clean_stock_data --remote-hosts $host_list --start-date $DATE_PARAM --end-date $DATE_PARAM"
 # 执行拷贝到远程机器
 eval $COPYCOMAND
+echo "同步到 $host_list 完成"
