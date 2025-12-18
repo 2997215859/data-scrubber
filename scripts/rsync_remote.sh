@@ -11,10 +11,10 @@ REMOTE_USER="root"  # 远端用户名
 REMOTE_PASSWORD="Milkt@2025"  # 密码包含特殊字符，保持原样即可
 REMOTE_BASE_DIR="/mnt/local/clean_stock_data"  # 远端目录
 # 日期范围（YYYYMMDD格式，留空则不限制）
-START_DATE="20210104"
-END_DATE="20251212"
+START_DATE="20210101"
+END_DATE="20210101"
 # 日志文件路径
-LOG_FILE="copy_stock_data.log"
+LOG_FILE="rsync_remote.log"
 # 配置文件路径（命令行参数--config指定，默认空）
 CONFIG_FILE=""
 # ==============================================================================

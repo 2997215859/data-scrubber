@@ -32,7 +32,7 @@ nohup rsync -avzP /mnt/local/clean_stock_data/ /mnt/share/clean_stock_data/  > r
 ```
 
 ```bash
-bash copy_stock_data.sh --config config.ini
+bash rsync_remote.sh --config config.ini
 ```
 
 ```bash

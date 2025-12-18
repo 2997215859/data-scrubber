@@ -22,7 +22,7 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 cat << EOF > "$CONFIG_FILE"
 {
   "src_dir": "$SRC_DIR",
-  "dst_dir": "/mnt/share/clean_stock_data",
+  "dst_dir": "/mnt/local/clean_stock_data",
   "date_start": "$DATE_PARAM",
   "date_end": "$DATE_PARAM",
   "data_type_list": [ "snapshot", "trade" ]
@@ -49,10 +49,14 @@ while true; do
         echo "检测到文件 $DONE_FILE 存在，开始执行命令..."
         # 执行命令
         eval $COMMAND
-        echo "命令执行完成，脚本退出"
+        echo "生成行情命令执行完成"
         exit 0
     else
         echo "文件 $DONE_FILE 不存在，$INTERVAL 秒后再次检查..."
         sleep $INTERVAL
     fi
 done
+
+COPYCOMAND="bash rsync_remote.sh --local-base /mnt/local/clean_stock_data --remote-hosts "192.168.31.107" --start-date $DATE_PARAM --end-date $DATE_PARAM"
+# 执行拷贝到远程机器
+eval $COPYCOMAND
