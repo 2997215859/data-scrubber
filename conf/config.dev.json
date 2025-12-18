@@ -1,7 +1,7 @@
 {
   "src_dir": "./testdata/mock_src",
   "dst_dir": "./testdata/mock_dst",
-  "date_start": "20240115",
-  "date_end": "20240115",
+  "date_start": "20240215",
+  "date_end": "20240215",
   "data_type_list": [ "snapshot","trade" ]
 }

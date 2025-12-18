@@ -76,8 +76,14 @@ func main() {
 	}
 
 	if cfg.DateList == nil {
-		for currentDate := startDate; currentDate.Lte(endDate); currentDate = currentDate.AddDay() {
-			RunDaily(currentDate, cfg)
+		if cfg.DateSort != "desc" {
+			for currentDate := startDate; currentDate.Lte(endDate); currentDate = currentDate.AddDay() {
+				RunDaily(currentDate, cfg)
+			}
+		} else {
+			for currentDate := endDate; currentDate.Gte(startDate); currentDate = currentDate.SubDay() {
+				RunDaily(currentDate, cfg)
+			}
 		}
 	} else {
 		for _, date := range cfg.DateList {

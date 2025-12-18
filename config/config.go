@@ -14,6 +14,7 @@ type Config struct {
 	DateEnd      string   `json:"date_end"`
 	DateList     []string `json:"date_list"`
 	DataTypeList []string `json:"data_type_list"`
+	DateSort     string   `json:"date_sort"`
 	Sort         bool     `json:"sort"`
 }
 
