@@ -3,7 +3,11 @@ package service
 import (
 	"data-scrubber/biz/errorx"
 	"data-scrubber/biz/upstream/gotushare"
+	"data-scrubber/biz/utils"
+	"time"
+
 	logger "github.com/2997215859/golog"
+	"github.com/avast/retry-go/v4"
 )
 
 var ts *gotushare.TuShare
@@ -67,9 +71,15 @@ var mapPriceLimit map[string]*PriceLimit
 func UpdateTuShareDailyLimit(date string) error {
 	mapPriceLimit = make(map[string]*PriceLimit)
 
-	priceLimitList, err := GetDateLimit(date)
+	priceLimitList, err := retry.DoWithData(func() ([]*PriceLimit, error) {
+		priceLimitList, err := GetDateLimit(date)
+		if err != nil {
+			return nil, errorx.NewError("UpdateTuShareDailyLimit err: %v", err)
+		}
+		return priceLimitList, nil
+	}, utils.RetryFixedOpts(3, 1*time.Minute)...)
 	if err != nil {
-		return errorx.NewError("UpdateTuShareDailyLimit err: %v", err)
+		return errorx.NewError("retry GetDateLimit error: %v", err)
 	}
 
 	for _, v := range priceLimitList {

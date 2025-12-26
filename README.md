@@ -36,9 +36,9 @@ bash rsync_remote.sh --config config.ini
 ```
 
 ```bash
-bash copy_stock_data.sh \
+nohup bash rsync_remote.sh \
     --local-base /mnt/local/clean_stock_data \
     --remote-hosts "192.168.31.97 192.168.31.107" \
-    --start-date 20240101
-    --end-date 20240101
+    --start-date 20240101 \
+    --end-date 20240101 > nohup.out 2>&1 &
 ```
