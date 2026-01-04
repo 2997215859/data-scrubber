@@ -686,20 +686,35 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 	}
 
 	// 验证必要的标题是否存在
+	//requiredHeaders := []string{
+	//	"UpdateTime", "SecurityID", "PreCloPrice", "TurnNum", "Volume", "Turnover", "LastPrice",
+	//	"OpenPrice", "HighPrice", "LowPrice", "TotalBidQty", "TotalOfferQty",
+	//	"HighLimitPrice", "LowLimitPrice",
+	//	"AskPrice1", "AskVolume1", "BidPrice1", "BidVolume1", "NumOrdersB1", "NumOrdersS1", "LocalTime", "SeqNo",
+	//	"AskPrice2", "AskVolume2", "BidPrice2", "BidVolume2", "NumOrdersB2", "NumOrdersS2",
+	//	"AskPrice3", "AskVolume3", "BidPrice3", "BidVolume3", "NumOrdersB3", "NumOrdersS3",
+	//	"AskPrice4", "AskVolume4", "BidPrice4", "BidVolume4", "NumOrdersB4", "NumOrdersS4",
+	//	"AskPrice5", "AskVolume5", "BidPrice5", "BidVolume5", "NumOrdersB5", "NumOrdersS5",
+	//	"AskPrice6", "AskVolume6", "BidPrice6", "BidVolume6", "NumOrdersB6", "NumOrdersS6",
+	//	"AskPrice7", "AskVolume7", "BidPrice7", "BidVolume7", "NumOrdersB7", "NumOrdersS7",
+	//	"AskPrice8", "AskVolume8", "BidPrice8", "BidVolume8", "NumOrdersB8", "NumOrdersS8",
+	//	"AskPrice9", "AskVolume9", "BidPrice9", "BidVolume9", "NumOrdersB9", "NumOrdersS9",
+	//	"AskPrice10", "AskVolume10", "BidPrice10", "BidVolume10", "NumOrdersB10", "NumOrdersS10",
+	//}
 	requiredHeaders := []string{
 		"UpdateTime", "SecurityID", "PreCloPrice", "TurnNum", "Volume", "Turnover", "LastPrice",
 		"OpenPrice", "HighPrice", "LowPrice", "TotalBidQty", "TotalOfferQty",
 		"HighLimitPrice", "LowLimitPrice",
-		"AskPrice1", "AskVolume1", "BidPrice1", "BidVolume1", "NumOrdersB1", "NumOrdersS1", "LocalTime", "SeqNo",
-		"AskPrice2", "AskVolume2", "BidPrice2", "BidVolume2", "NumOrdersB2", "NumOrdersS2",
-		"AskPrice3", "AskVolume3", "BidPrice3", "BidVolume3", "NumOrdersB3", "NumOrdersS3",
-		"AskPrice4", "AskVolume4", "BidPrice4", "BidVolume4", "NumOrdersB4", "NumOrdersS4",
-		"AskPrice5", "AskVolume5", "BidPrice5", "BidVolume5", "NumOrdersB5", "NumOrdersS5",
-		"AskPrice6", "AskVolume6", "BidPrice6", "BidVolume6", "NumOrdersB6", "NumOrdersS6",
-		"AskPrice7", "AskVolume7", "BidPrice7", "BidVolume7", "NumOrdersB7", "NumOrdersS7",
-		"AskPrice8", "AskVolume8", "BidPrice8", "BidVolume8", "NumOrdersB8", "NumOrdersS8",
-		"AskPrice9", "AskVolume9", "BidPrice9", "BidVolume9", "NumOrdersB9", "NumOrdersS9",
-		"AskPrice10", "AskVolume10", "BidPrice10", "BidVolume10", "NumOrdersB10", "NumOrdersS10",
+		"AskPrice1", "AskVolume1", "BidPrice1", "BidVolume1", "LocalTime", "SeqNo",
+		"AskPrice2", "AskVolume2", "BidPrice2", "BidVolume2",
+		"AskPrice3", "AskVolume3", "BidPrice3", "BidVolume3",
+		"AskPrice4", "AskVolume4", "BidPrice4", "BidVolume4",
+		"AskPrice5", "AskVolume5", "BidPrice5", "BidVolume5",
+		"AskPrice6", "AskVolume6", "BidPrice6", "BidVolume6",
+		"AskPrice7", "AskVolume7", "BidPrice7", "BidVolume7",
+		"AskPrice8", "AskVolume8", "BidPrice8", "BidVolume8",
+		"AskPrice9", "AskVolume9", "BidPrice9", "BidVolume9",
+		"AskPrice10", "AskVolume10", "BidPrice10", "BidVolume10",
 	}
 	for _, header := range requiredHeaders {
 		if _, exists := headerIndex[header]; !exists {
@@ -908,50 +923,50 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 		}
 
 		// 解析买卖盘订单数
-		for i := 1; i <= 10; i++ {
-			buyOrdersField := fmt.Sprintf("NumOrdersB%d", i)
-			sellOrdersField := fmt.Sprintf("NumOrdersS%d", i)
-
-			var buyOrdersPtr *int
-			var sellOrdersPtr *int
-
-			switch i {
-			case 1:
-				buyOrdersPtr = &snapshot.NumOrdersB1
-				sellOrdersPtr = &snapshot.NumOrdersS1
-			case 2:
-				buyOrdersPtr = &snapshot.NumOrdersB2
-				sellOrdersPtr = &snapshot.NumOrdersS2
-			case 3:
-				buyOrdersPtr = &snapshot.NumOrdersB3
-				sellOrdersPtr = &snapshot.NumOrdersS3
-			case 4:
-				buyOrdersPtr = &snapshot.NumOrdersB4
-				sellOrdersPtr = &snapshot.NumOrdersS4
-			case 5:
-				buyOrdersPtr = &snapshot.NumOrdersB5
-				sellOrdersPtr = &snapshot.NumOrdersS5
-			case 6:
-				buyOrdersPtr = &snapshot.NumOrdersB6
-				sellOrdersPtr = &snapshot.NumOrdersS6
-			case 7:
-				buyOrdersPtr = &snapshot.NumOrdersB7
-				sellOrdersPtr = &snapshot.NumOrdersS7
-			case 8:
-				buyOrdersPtr = &snapshot.NumOrdersB8
-				sellOrdersPtr = &snapshot.NumOrdersS8
-			case 9:
-				buyOrdersPtr = &snapshot.NumOrdersB9
-				sellOrdersPtr = &snapshot.NumOrdersS9
-			case 10:
-				buyOrdersPtr = &snapshot.NumOrdersB10
-				sellOrdersPtr = &snapshot.NumOrdersS10
-			}
-
-			_ = parseIntField(fields, headerIndex, buyOrdersField, buyOrdersPtr)
-
-			_ = parseIntField(fields, headerIndex, sellOrdersField, sellOrdersPtr)
-		}
+		//for i := 1; i <= 10; i++ {
+		//	buyOrdersField := fmt.Sprintf("NumOrdersB%d", i)
+		//	sellOrdersField := fmt.Sprintf("NumOrdersS%d", i)
+		//
+		//	var buyOrdersPtr *int
+		//	var sellOrdersPtr *int
+		//
+		//	switch i {
+		//	case 1:
+		//		buyOrdersPtr = &snapshot.NumOrdersB1
+		//		sellOrdersPtr = &snapshot.NumOrdersS1
+		//	case 2:
+		//		buyOrdersPtr = &snapshot.NumOrdersB2
+		//		sellOrdersPtr = &snapshot.NumOrdersS2
+		//	case 3:
+		//		buyOrdersPtr = &snapshot.NumOrdersB3
+		//		sellOrdersPtr = &snapshot.NumOrdersS3
+		//	case 4:
+		//		buyOrdersPtr = &snapshot.NumOrdersB4
+		//		sellOrdersPtr = &snapshot.NumOrdersS4
+		//	case 5:
+		//		buyOrdersPtr = &snapshot.NumOrdersB5
+		//		sellOrdersPtr = &snapshot.NumOrdersS5
+		//	case 6:
+		//		buyOrdersPtr = &snapshot.NumOrdersB6
+		//		sellOrdersPtr = &snapshot.NumOrdersS6
+		//	case 7:
+		//		buyOrdersPtr = &snapshot.NumOrdersB7
+		//		sellOrdersPtr = &snapshot.NumOrdersS7
+		//	case 8:
+		//		buyOrdersPtr = &snapshot.NumOrdersB8
+		//		sellOrdersPtr = &snapshot.NumOrdersS8
+		//	case 9:
+		//		buyOrdersPtr = &snapshot.NumOrdersB9
+		//		sellOrdersPtr = &snapshot.NumOrdersS9
+		//	case 10:
+		//		buyOrdersPtr = &snapshot.NumOrdersB10
+		//		sellOrdersPtr = &snapshot.NumOrdersS10
+		//	}
+		//
+		//	_ = parseIntField(fields, headerIndex, buyOrdersField, buyOrdersPtr)
+		//
+		//	_ = parseIntField(fields, headerIndex, sellOrdersField, sellOrdersPtr)
+		//}
 
 		snapshot.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
 
