@@ -92,28 +92,28 @@ type ShRawSnapshot struct {
 	BidVolume9    float64
 	BidPrice10    float64
 	BidVolume10   float64
-	NumOrdersB1   int
-	NumOrdersB2   int
-	NumOrdersB3   int
-	NumOrdersB4   int
-	NumOrdersB5   int
-	NumOrdersB6   int
-	NumOrdersB7   int
-	NumOrdersB8   int
-	NumOrdersB9   int
-	NumOrdersB10  int
-	NumOrdersS1   int
-	NumOrdersS2   int
-	NumOrdersS3   int
-	NumOrdersS4   int
-	NumOrdersS5   int
-	NumOrdersS6   int
-	NumOrdersS7   int
-	NumOrdersS8   int
-	NumOrdersS9   int
-	NumOrdersS10  int
-	LocalTime     string
-	SeqNo         int64
+	//NumOrdersB1   int
+	//NumOrdersB2   int
+	//NumOrdersB3   int
+	//NumOrdersB4   int
+	//NumOrdersB5   int
+	//NumOrdersB6   int
+	//NumOrdersB7   int
+	//NumOrdersB8   int
+	//NumOrdersB9   int
+	//NumOrdersB10  int
+	//NumOrdersS1   int
+	//NumOrdersS2   int
+	//NumOrdersS3   int
+	//NumOrdersS4   int
+	//NumOrdersS5   int
+	//NumOrdersS6   int
+	//NumOrdersS7   int
+	//NumOrdersS8   int
+	//NumOrdersS9   int
+	//NumOrdersS10  int
+	LocalTime string
+	SeqNo     int64
 }
 
 /*

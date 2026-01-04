@@ -10,14 +10,15 @@ import (
 	"data-scrubber/biz/utils"
 	"data-scrubber/config"
 	"fmt"
-	logger "github.com/2997215859/golog"
-	"github.com/gocarina/gocsv"
 	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+
+	logger "github.com/2997215859/golog"
+	"github.com/gocarina/gocsv"
 )
 
 // ==== sh 处理
@@ -86,6 +87,7 @@ func ManualReadShRawSnapshot(filepath string) ([]*model.ShRawSnapshot, error) {
 	// 存储解析结果
 	var snapshots []*model.ShRawSnapshot
 	lineNum := 2 // 从第2行开始(标题是第1行)
+	// todo 这里的 lineNum 处理有问题，但因为现在还没用到，所以没有造成实际影响，其他数据结构也是，后面需要改掉
 
 	// 逐行读取数据
 	for {
@@ -458,54 +460,54 @@ func ManualReadShRawSnapshot(filepath string) ([]*model.ShRawSnapshot, error) {
 			lineNum++
 		}
 
-		// 解析买卖盘订单数
-		for i := 1; i <= 10; i++ {
-			buyOrdersField := fmt.Sprintf("NumOrdersB%d", i)
-			sellOrdersField := fmt.Sprintf("NumOrdersS%d", i)
-
-			var buyOrdersPtr *int
-			var sellOrdersPtr *int
-
-			switch i {
-			case 1:
-				buyOrdersPtr = &snapshot.NumOrdersB1
-				sellOrdersPtr = &snapshot.NumOrdersS1
-			case 2:
-				buyOrdersPtr = &snapshot.NumOrdersB2
-				sellOrdersPtr = &snapshot.NumOrdersS2
-			case 3:
-				buyOrdersPtr = &snapshot.NumOrdersB3
-				sellOrdersPtr = &snapshot.NumOrdersS3
-			case 4:
-				buyOrdersPtr = &snapshot.NumOrdersB4
-				sellOrdersPtr = &snapshot.NumOrdersS4
-			case 5:
-				buyOrdersPtr = &snapshot.NumOrdersB5
-				sellOrdersPtr = &snapshot.NumOrdersS5
-			case 6:
-				buyOrdersPtr = &snapshot.NumOrdersB6
-				sellOrdersPtr = &snapshot.NumOrdersS6
-			case 7:
-				buyOrdersPtr = &snapshot.NumOrdersB7
-				sellOrdersPtr = &snapshot.NumOrdersS7
-			case 8:
-				buyOrdersPtr = &snapshot.NumOrdersB8
-				sellOrdersPtr = &snapshot.NumOrdersS8
-			case 9:
-				buyOrdersPtr = &snapshot.NumOrdersB9
-				sellOrdersPtr = &snapshot.NumOrdersS9
-			case 10:
-				buyOrdersPtr = &snapshot.NumOrdersB10
-				sellOrdersPtr = &snapshot.NumOrdersS10
-			}
-
-			parseIntField(fields, headerIndex, buyOrdersField, buyOrdersPtr)
-
-			parseIntField(fields, headerIndex, sellOrdersField, sellOrdersPtr)
-
-			lineNum++
-
-		}
+		//// 解析买卖盘订单数
+		//for i := 1; i <= 10; i++ {
+		//	buyOrdersField := fmt.Sprintf("NumOrdersB%d", i)
+		//	sellOrdersField := fmt.Sprintf("NumOrdersS%d", i)
+		//
+		//	var buyOrdersPtr *int
+		//	var sellOrdersPtr *int
+		//
+		//	switch i {
+		//	case 1:
+		//		buyOrdersPtr = &snapshot.NumOrdersB1
+		//		sellOrdersPtr = &snapshot.NumOrdersS1
+		//	case 2:
+		//		buyOrdersPtr = &snapshot.NumOrdersB2
+		//		sellOrdersPtr = &snapshot.NumOrdersS2
+		//	case 3:
+		//		buyOrdersPtr = &snapshot.NumOrdersB3
+		//		sellOrdersPtr = &snapshot.NumOrdersS3
+		//	case 4:
+		//		buyOrdersPtr = &snapshot.NumOrdersB4
+		//		sellOrdersPtr = &snapshot.NumOrdersS4
+		//	case 5:
+		//		buyOrdersPtr = &snapshot.NumOrdersB5
+		//		sellOrdersPtr = &snapshot.NumOrdersS5
+		//	case 6:
+		//		buyOrdersPtr = &snapshot.NumOrdersB6
+		//		sellOrdersPtr = &snapshot.NumOrdersS6
+		//	case 7:
+		//		buyOrdersPtr = &snapshot.NumOrdersB7
+		//		sellOrdersPtr = &snapshot.NumOrdersS7
+		//	case 8:
+		//		buyOrdersPtr = &snapshot.NumOrdersB8
+		//		sellOrdersPtr = &snapshot.NumOrdersS8
+		//	case 9:
+		//		buyOrdersPtr = &snapshot.NumOrdersB9
+		//		sellOrdersPtr = &snapshot.NumOrdersS9
+		//	case 10:
+		//		buyOrdersPtr = &snapshot.NumOrdersB10
+		//		sellOrdersPtr = &snapshot.NumOrdersS10
+		//	}
+		//
+		//	parseIntField(fields, headerIndex, buyOrdersField, buyOrdersPtr)
+		//
+		//	parseIntField(fields, headerIndex, sellOrdersField, sellOrdersPtr)
+		//
+		//	lineNum++
+		//
+		//}
 
 		snapshot.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
 
