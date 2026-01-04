@@ -460,6 +460,7 @@ func ManualReadShRawSnapshot(filepath string) ([]*model.ShRawSnapshot, error) {
 			lineNum++
 		}
 
+		// 20190604 及其之前的 snapshot，无该字段，暂时也用不到，故先注释掉
 		//// 解析买卖盘订单数
 		//for i := 1; i <= 10; i++ {
 		//	buyOrdersField := fmt.Sprintf("NumOrdersB%d", i)
