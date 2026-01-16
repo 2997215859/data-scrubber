@@ -744,6 +744,9 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 
 		// 处理当前行，去除行末可能的逗号
 		fields := strings.Split(strings.TrimSpace(line), ",")
+		if len(fields) == 68 {
+			logger.Error("errorline = %s", line)
+		}
 
 		// 确保每行有足够的字段
 		if len(fields) < len(requiredHeaders) {
