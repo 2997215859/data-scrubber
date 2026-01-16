@@ -711,7 +711,8 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 		"UpdateTime", "SecurityID", "PreCloPrice", "TurnNum", "Volume", "Turnover", "LastPrice",
 		"OpenPrice", "HighPrice", "LowPrice", "TotalBidQty", "TotalOfferQty",
 		"HighLimitPrice", "LowLimitPrice",
-		"AskPrice1", "AskVolume1", "BidPrice1", "BidVolume1", "LocalTime", "SeqNo",
+		"AskPrice1", "AskVolume1", "BidPrice1", "BidVolume1", "LocalTime",
+		//"SeqNo",
 		"AskPrice2", "AskVolume2", "BidPrice2", "BidVolume2",
 		"AskPrice3", "AskVolume3", "BidPrice3", "BidVolume3",
 		"AskPrice4", "AskVolume4", "BidPrice4", "BidVolume4",
@@ -978,12 +979,15 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 		//}
 
 		snapshot.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
-
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &snapshot.SeqNo); err != nil {
-			logger.Warn("警告: 第 %d 行 SeqNo 解析错误: %v，跳过该行", lineNum, err)
-			lineNum++
-			continue
+		if snapshot.LocalTime == "" {
+			snapshot.LocalTime = snapshot.UpdateTime
 		}
+
+		//if err := parseInt64Field(fields, headerIndex, "SeqNo", &snapshot.SeqNo); err != nil {
+		//	logger.Warn("警告: 第 %d 行 SeqNo 解析错误: %v，跳过该行", lineNum, err)
+		//	lineNum++
+		//	continue
+		//}
 
 		// 将解析成功的快照添加到结果列表
 		snapshots = append(snapshots, snapshot)

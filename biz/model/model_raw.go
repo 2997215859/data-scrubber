@@ -212,7 +212,7 @@ type SzRawSnapshot struct {
 	//NumOrdersS9        int
 	//NumOrdersS10       int
 	LocalTime string
-	SeqNo     int64
+	//SeqNo     int64
 }
 
 /*
