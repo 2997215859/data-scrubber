@@ -676,6 +676,12 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 	}
 	headerLine = strings.TrimSpace(headerLine)
 
+	// 如果结尾以 ,, 结尾，说明是通联后来补充的缺失数据，是没有 LocalTime 和 SeqNo 两个字段的值的，这种情况需再加一个 ,
+	// 因为 splitLine 这个函数会先去掉后面的 ,
+	if strings.HasSuffix(headerLine, ",,") {
+		headerLine += ","
+	}
+
 	// 处理标题行，去除行末可能的逗号
 	headers := splitLine(headerLine)
 
