@@ -22,7 +22,7 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 cat << EOF > "$CONFIG_FILE"
 {
   "src_dir": "$SRC_DIR",
-  "dst_dir": "/mnt/local/clean_stock_data",
+  "dst_dir": "/mnt/defaultjfs/md/clean_stock_data",
   "date_start": "$DATE_PARAM",
   "date_end": "$DATE_PARAM",
   "data_type_list": [ "snapshot", "trade" ]
