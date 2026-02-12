@@ -58,9 +58,9 @@ while true; do
     fi
 done
 
-host_list='"192.168.31.97 192.168.31.107"'
-
-COPYCOMAND="bash rsync_remote.sh --local-base /mnt/defaultjfs/md/clean_stock_data --remote-hosts $host_list --start-date $DATE_PARAM --end-date $DATE_PARAM"
-# 执行拷贝到远程机器
-eval $COPYCOMAND
-echo "同步到 $host_list 完成"
+#host_list='"192.168.31.97 192.168.31.107"'
+#
+#COPYCOMAND="bash rsync_remote.sh --local-base /mnt/defaultjfs/md/clean_stock_data --remote-hosts $host_list --start-date $DATE_PARAM --end-date $DATE_PARAM"
+## 执行拷贝到远程机器
+#eval $COPYCOMAND
+#echo "同步到 $host_list 完成"
