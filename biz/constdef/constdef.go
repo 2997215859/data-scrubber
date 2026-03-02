@@ -7,6 +7,14 @@ const (
 )
 
 const (
-	DataTypeSnapshot = "snapshot"
-	DataTypeTrade    = "trade"
+	DataTypeSnapshot   = "snapshot"
+	DataTypeTrade      = "trade"
+	DataTypeOrder      = "order"
+	DataTypeOrderQueue = "orderqueue"
+)
+
+// 委托类型常量
+const (
+	OrderTypeAdd    = "add"    // 新增委托
+	OrderTypeCancel = "cancel" // 撤单
 )

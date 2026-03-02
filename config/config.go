@@ -26,7 +26,7 @@ func ReadConfig(filepath string) *Config {
 
 	// 检查配置文件是否存在
 	if _, err := os.Stat(filepath); os.IsNotExist(err) {
-		logger.Fatal("config_file(%s) not exist: %s", filepath)
+		logger.Fatal("config_file(%s) not exist: %s", filepath, err)
 	}
 
 	logger.Info("config_file(%s)", filepath)

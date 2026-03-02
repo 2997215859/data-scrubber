@@ -270,6 +270,74 @@ DataStatus,TradeIndex,TradeChan,SecurityID,TradTime,TradPrice,TradVolume,TradeMo
 0,5,1,601360,09:25:00.000,9.340,800.000,7472.00000,73787,212050,N,2771,09:25:00.176,5,
 */
 
+/*
+*
+沪市旧格式逐笔委托 mdl_4_19_0 (< 20231204)
+DataStatus,OrderIndex,OrderChannel,SecurityID,OrderTime,OrderType,OrderNO,OrderPrice,Balance,OrderBSFlag,BizIndex,LocalTime,SeqNo
+0,1,3,603758,09:15:00.260,A,979,10.180,1800.000,S,1,09:25:00.113,1
+*/
+type OldShRawOrder struct {
+	DataStatus   int
+	OrderIndex   int64
+	OrderChannel int64
+	SecurityID   string
+	OrderTime    string
+	OrderType    string  // A=新增, D=撤单
+	OrderNO      int64
+	OrderPrice   float64
+	Balance      float64 // 委托数量
+	OrderBSFlag  string  // B=买, S=卖
+	BizIndex     int64
+	LocalTime    string
+	SeqNo        int64
+}
+
+/*
+*
+深市逐笔委托 mdl_6_33_0
+ChannelNo,ApplSeqNum,MDStreamID,SecurityID,SecurityIDSource,Price,OrderQty,Side,TransactTime,OrdType,LocalTime,SeqNo
+2012,1,011,002813,102 ,35.0100,62600,49,09:15:00.000,50,09:15:00.002,1,
+*/
+type SzRawOrder struct {
+	ChannelNo        int64
+	ApplSeqNum       int64
+	MDStreamID       string
+	SecurityID       string
+	SecurityIDSource int64
+	Price            float64
+	OrderQty         int64
+	Side             int // 49='1'=买, 50='2'=卖
+	TransactTime     string
+	OrdType          int // 50='2'=限价, 49='1'=市价
+	LocalTime        string
+	SeqNo            int64
+}
+
+/*
+*
+委托队列原始数据（沪深通用）
+沪市 OrderQueue.csv.zip:
+UpdateTime,SecurityID,ImageStatus,Side,NoPriceLevel,PrcLvlOperator,Price,Volume,NumOrders,NoOrders,OrderQty1,...,OrderQty50,LocalTime,SeqNo
+
+深市 mdl_6_28_1.csv.zip / mdl_6_28_2.csv.zip:
+DataTimeStamp,SecurityID,ImageStatus,Side,NoPriceLevel,PrcLvlOperator,Price,Volume,NumOrders,NoOrders,OrderQty1,...,OrderQty50,LocalTime,SeqNo
+*/
+type RawOrderQueue struct {
+	Timestamp      string    // 沪: UpdateTime, 深: DataTimeStamp
+	SecurityID     string
+	ImageStatus    int
+	Side           string  // B=买, S=卖
+	NoPriceLevel   int
+	PrcLvlOperator int
+	Price          float64
+	Volume         float64 // 用 float64 兼容沪市的浮点格式
+	NumOrders      int
+	NoOrders       int
+	OrderQtyList   []float64 // OrderQty1~OrderQty50，用 float64 兼容沪市
+	LocalTime      string
+	SeqNo          int64
+}
+
 // 在 20231204 之后（含）是新数据格式，在此之前是旧格式
 type OldShRawTrade struct {
 	DataStatus  int     // 数据状态

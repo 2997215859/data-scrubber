@@ -38,7 +38,7 @@ func GetDateLimit(tradeDate string) ([]*PriceLimit, error) {
 		return nil, errorx.NewError("GetDateLimit err: %v", err)
 	}
 	if rsp.Code != 0 {
-		return nil, errorx.NewError("GetDateLimit code != 0. msg = %s", rsp.Code, rsp.Msg)
+		return nil, errorx.NewError("GetDateLimit code != 0. code = %d, msg = %s", rsp.Code, rsp.Msg)
 	}
 
 	res := make([]*PriceLimit, 0)

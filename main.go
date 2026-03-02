@@ -55,6 +55,22 @@ func RunDaily(currentDate *carbon.Carbon, cfg *config.Config) {
 		}
 		logger.Info("Process Date(%s) Trade End", date)
 	}
+
+	if slices.Contains(cfg.DataTypeList, constdef.DataTypeOrder) {
+		logger.Info("Process Date(%s) Order Begin", date)
+		if err := service.MergeRawOrder(cfg.SrcDir, cfg.DstDir, date); err != nil {
+			logger.Error("date(%s) MergeRawOrder error: %v", date, err)
+		}
+		logger.Info("Process Date(%s) Order End", date)
+	}
+
+	if slices.Contains(cfg.DataTypeList, constdef.DataTypeOrderQueue) {
+		logger.Info("Process Date(%s) OrderQueue Begin", date)
+		if err := service.MergeRawOrderQueue(cfg.SrcDir, cfg.DstDir, date); err != nil {
+			logger.Error("date(%s) MergeRawOrderQueue error: %v", date, err)
+		}
+		logger.Info("Process Date(%s) OrderQueue End", date)
+	}
 }
 
 func main() {

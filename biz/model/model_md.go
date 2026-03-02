@@ -28,6 +28,28 @@ type Trade struct {
 	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
 }
 
+type Order struct {
+	InstrumentId   string  `parquet:"name=InstrumentId, type=BYTE_ARRAY, convertedtype=UTF8"`
+	OrderTimestamp int64   `parquet:"name=OrderTimestamp, type=INT64"`
+	OrderId        int64   `parquet:"name=OrderId, type=INT64"`
+	OrderType      string  `parquet:"name=OrderType, type=BYTE_ARRAY, convertedtype=UTF8"` // "add" 或 "cancel"
+	Direction      string  `parquet:"name=Direction, type=BYTE_ARRAY, convertedtype=UTF8"`  // "buy"/"sell"/"unknown"
+	Price          float64 `parquet:"name=Price, type=DOUBLE"`
+	Volume         int64   `parquet:"name=Volume, type=INT64"`
+	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
+}
+
+type OrderQueue struct {
+	InstrumentId   string  `parquet:"name=InstrumentId, type=BYTE_ARRAY, convertedtype=UTF8"`
+	UpdateTimestamp int64   `parquet:"name=UpdateTimestamp, type=INT64"`
+	Direction      string  `parquet:"name=Direction, type=BYTE_ARRAY, convertedtype=UTF8"` // "buy"/"sell"
+	Price          float64 `parquet:"name=Price, type=DOUBLE"`
+	Volume         int64   `parquet:"name=Volume, type=INT64"`
+	NumOrders      int64   `parquet:"name=NumOrders, type=INT64"`
+	OrderQtyList   []int64 `parquet:"name=OrderQtyList, type=MAP, convertedtype=LIST, valuetype=INT64"`
+	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
+}
+
 type Snapshot struct {
 	InstrumentId    string  `parquet:"name=InstrumentId, type=BYTE_ARRAY, convertedtype=UTF8"`
 	UpdateTimestamp int64   `parquet:"name=UpdateTimestamp, type=INT64"`
