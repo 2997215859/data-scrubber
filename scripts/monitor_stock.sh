@@ -25,7 +25,7 @@ cat << EOF > "$CONFIG_FILE"
   "dst_dir": "/mnt/defaultjfs/md/clean_stock_data",
   "date_start": "$DATE_PARAM",
   "date_end": "$DATE_PARAM",
-  "data_type_list": [ "snapshot", "trade" ]
+  "data_type_list": [ "snapshot", "trade", "order", "orderqueue" ]
 }
 EOF
 
