@@ -354,7 +354,7 @@ main() {
     done
 
     # 6. 同步snapshot和trade目录到远端所有主机
-    for dir_name in "snapshot" "trade"; do
+    for dir_name in "snapshot" "trade" "order" "orderqueue"; do
         for remote_host in "${REMOTE_HOSTS[@]}"; do
             copy_to_remote "${remote_host}" "${dir_name}"
         done
