@@ -6,8 +6,9 @@ toolchain go1.23.7
 
 require (
 	github.com/2997215859/golog v0.0.0-20250403123747-937295d0defa
+	github.com/avast/retry-go/v4 v4.7.0
+	github.com/dromara/carbon/v2 v2.6.7
 	github.com/gocarina/gocsv v0.0.0-20240520201108-78e41c74b4b1
-	github.com/golang-module/carbon/v2 v2.6.7
 	github.com/montanaflynn/stats v0.7.1
 	github.com/samber/lo v1.50.0
 	github.com/spf13/pflag v1.0.6
@@ -19,9 +20,6 @@ require (
 	github.com/2997215859/goenv v0.0.0-20250127093738-ddb38d5f6d5c // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
 	github.com/apache/thrift v0.14.2 // indirect
-	github.com/avast/retry-go v3.0.0+incompatible // indirect
-	github.com/avast/retry-go/v4 v4.7.0 // indirect
-	github.com/dromara/carbon/v2 v2.6.7 // indirect
 	github.com/golang/snappy v0.0.3 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
 	github.com/lestrrat-go/file-rotatelogs v2.4.0+incompatible // indirect

@@ -12,7 +12,7 @@ import (
 	"sort"
 
 	logger "github.com/2997215859/golog"
-	"github.com/golang-module/carbon/v2"
+	"github.com/dromara/carbon/v2"
 )
 
 // ==== 沪市新格式转换（复用 ShRawTrade 结构体，Type=A/D）

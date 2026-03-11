@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/golang-module/carbon/v2"
+	"github.com/dromara/carbon/v2"
 )
 
 func init() {

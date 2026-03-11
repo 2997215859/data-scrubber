@@ -9,7 +9,7 @@ import (
 	"slices"
 
 	logger "github.com/2997215859/golog"
-	"github.com/golang-module/carbon/v2"
+	"github.com/dromara/carbon/v2"
 	"github.com/spf13/pflag"
 )
 
