@@ -94,6 +94,7 @@ func ShRawTrade2Trade(date string, v *model.ShRawTrade) (*model.Trade, error) {
 		Direction:      direction,
 		BuyOrderId:     v.BuyOrderNo,
 		SellOrderId:    v.SellOrderNo,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -125,6 +126,7 @@ func OldShRawTrade2Trade(date string, v *model.OldShRawTrade) (*model.Trade, err
 		Direction:      direction,
 		BuyOrderId:     v.TradeBuyNo,
 		SellOrderId:    v.TradeSellNo,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -243,6 +245,7 @@ func SzRawTrade2Trade(date string, v *model.SzRawTrade) (*model.Trade, error) {
 		Direction:      direction,
 		BuyOrderId:     v.BidApplSeqNum,
 		SellOrderId:    v.OfferApplSeqNum,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 	return res, nil
@@ -271,7 +274,11 @@ var shNewTradeStartDay = carbon.Parse("20231204").StartOfDay()
 var shBizIndexStartDay = carbon.Parse("20210426").StartOfDay()
 
 func MergeRawTrade(srcDir string, dstDir string, date string) error {
-	dstDir = filepath.Join(dstDir, constdef.DataTypeTrade, date)
+	if config.Cfg.IsPerDay() {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeTrade)
+	} else {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeTrade, date)
+	}
 
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_36_0.csv.zip", date))
 
@@ -341,20 +348,22 @@ func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	//}
 	//logger.Info("Write Trade.parquet End")
 
-	tradeMap := GetMapTrade(tradeList)
+	// 根据 output_mode 选择写入方式
+	if config.Cfg.IsPerDay() {
+		logger.Info("Write AllTrade.parquet Begin")
+		if err := WriteTradeParquet(dstDir, date, tradeList); err != nil {
+			return errorx.NewError("WriteTradeParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write AllTrade.parquet End")
+	} else {
+		tradeMap := GetMapTrade(tradeList)
 
-	// 写入
-	//logger.Info("Write Trade.gz Begin")
-	//if err := WriteTradeGz(dstDir, date, tradeMap); err != nil {
-	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	//}
-	//logger.Info("Write Trade.gz End")
-
-	logger.Info("Write StockTrade.parquet Begin")
-	if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
-		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+		logger.Info("Write StockTrade.parquet Begin")
+		if err := WriteStockTradeParquet(dstDir, date, tradeMap); err != nil {
+			return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write StockTrade.parquet End")
 	}
-	logger.Info("Write StockTrade.parquet End")
 
 	return nil
 }

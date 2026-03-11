@@ -603,6 +603,7 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 		TradeTurnover:   v.Turnover,
 		HighLimit:       priceLimit.HighLimit,
 		LowLimit:        priceLimit.LowLimit,
+		Status:          v.InstruStatus,
 		BidVolumeList: utils.Float64ToInt64([]float64{
 			v.BidVolume1, v.BidVolume2, v.BidVolume3, v.BidVolume4, v.BidVolume5,
 			v.BidVolume6, v.BidVolume7, v.BidVolume8, v.BidVolume9, v.BidVolume10,
@@ -619,6 +620,7 @@ func ShRawSnapshot2Snapshot(date string, v *model.ShRawSnapshot) (*model.Snapsho
 			v.AskPrice1, v.AskPrice2, v.AskPrice3, v.AskPrice4, v.AskPrice5,
 			v.AskPrice6, v.AskPrice7, v.AskPrice8, v.AskPrice9, v.AskPrice10,
 		},
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 	return res, nil
@@ -978,16 +980,20 @@ func ManualReadSzRawSnapshot(filepath string) ([]*model.SzRawSnapshot, error) {
 		//	_ = parseIntField(fields, headerIndex, sellOrdersField, sellOrdersPtr)
 		//}
 
+		// 解析 TradingPhaseCode（可选）
+		if idx, exists := headerIndex["TradingPhaseCode"]; exists && idx < len(fields) {
+			snapshot.TradingPhaseCode = strings.TrimSpace(fields[idx])
+		}
+
 		snapshot.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
 		if snapshot.LocalTime == "" {
 			snapshot.LocalTime = snapshot.UpdateTime
 		}
 
-		//if err := parseInt64Field(fields, headerIndex, "SeqNo", &snapshot.SeqNo); err != nil {
-		//	logger.Warn("警告: 第 %d 行 SeqNo 解析错误: %v，跳过该行", lineNum, err)
-		//	lineNum++
-		//	continue
-		//}
+		// SeqNo 可选（历史补数据可能缺失）
+		if _, exists := headerIndex["SeqNo"]; exists {
+			_ = parseInt64Field(fields, headerIndex, "SeqNo", &snapshot.SeqNo)
+		}
 
 		// 将解析成功的快照添加到结果列表
 		snapshots = append(snapshots, snapshot)
@@ -1026,6 +1032,7 @@ func SzRawSnapshot2Snapshot(date string, v *model.SzRawSnapshot) (*model.Snapsho
 		TradeTurnover:   v.Turnover,
 		HighLimit:       v.HighLimitPrice,
 		LowLimit:        v.LowLimitPrice,
+		Status:          strings.TrimSpace(v.TradingPhaseCode),
 		BidVolumeList: []int64{
 			v.BidVolume1, v.BidVolume2, v.BidVolume3, v.BidVolume4, v.BidVolume5,
 			v.BidVolume6, v.BidVolume7, v.BidVolume8, v.BidVolume9, v.BidVolume10,
@@ -1042,6 +1049,7 @@ func SzRawSnapshot2Snapshot(date string, v *model.SzRawSnapshot) (*model.Snapsho
 			v.AskPrice1, v.AskPrice2, v.AskPrice3, v.AskPrice4, v.AskPrice5,
 			v.AskPrice6, v.AskPrice7, v.AskPrice8, v.AskPrice9, v.AskPrice10,
 		},
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 	return res, nil
@@ -1072,7 +1080,11 @@ func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
 		return err
 	}
 
-	dstDir = filepath.Join(dstDir, constdef.DataTypeSnapshot, date)
+	if config.Cfg.IsPerDay() {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeSnapshot)
+	} else {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeSnapshot, date)
+	}
 
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_MarketData.csv.zip", date))
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_28_0.csv.zip", date))
@@ -1109,20 +1121,22 @@ func MergeRawSnapshot(srcDir string, dstDir string, date string) error {
 	list := SortSnapshotRaw(shList, szList)
 	logger.Info("Convert All Raw Snapshot End")
 
-	snapshotMap := GetMapSnapshot(list)
+	// 根据 output_mode 选择写入方式
+	if config.Cfg.IsPerDay() {
+		logger.Info("Write AllSnapshot.parquet Begin")
+		if err := WriteAllSnapshotParquet(dstDir, date, list); err != nil {
+			return errorx.NewError("WriteAllSnapshotParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write AllSnapshot.parquet End")
+	} else {
+		snapshotMap := GetMapSnapshot(list)
 
-	// 写入
-	//logger.Info("Write StockSnapshot.gz Begin")
-	//if err := WriteSnapshotGz(dstDir, date, snapshotMap); err != nil {
-	//	return errorx.NewError("WriteTrade(%s) date(%s) error: %v", dstDir, date, err)
-	//}
-	//logger.Info("Write StockSnapshot.gz End")
-
-	logger.Info("Write StockSnapshot.parquet Begin")
-	if err := WriteSnapshotParquet(dstDir, date, snapshotMap); err != nil {
-		return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+		logger.Info("Write StockSnapshot.parquet Begin")
+		if err := WriteSnapshotParquet(dstDir, date, snapshotMap); err != nil {
+			return errorx.NewError("WriteParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write StockSnapshot.parquet End")
 	}
-	logger.Info("Write StockSnapshot.parquet End")
 	return nil
 }
 
@@ -1196,6 +1210,36 @@ func WriteSnapshotParquet(dstDir string, date string, mapSnapshot map[string][]*
 			if err := pw.Write(v); err != nil {
 				logger.Error("WriteSnapshotParquet InstrumentId(%s) error: %v", instrumentId, err)
 			}
+		}
+	}
+	return nil
+}
+
+func WriteAllSnapshotParquet(dstDir string, date string, list []*model.Snapshot) error {
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
+	}
+
+	filePath := filepath.Join(dstDir, fmt.Sprintf("%s_snapshot.parquet", date))
+
+	pw, err := NewParquetWriter(filePath, new(model.Snapshot))
+	if err != nil {
+		return errorx.NewError("NewParquetWriter error: %s", err)
+	}
+
+	defer func() {
+		if err := pw.Close(); err != nil {
+			logger.Error("关闭Parquet写入器时出错: %v", err)
+		}
+	}()
+
+	for _, v := range list {
+		if v == nil {
+			continue
+		}
+
+		if err := pw.Write(v); err != nil {
+			logger.Error("WriteAllSnapshotParquet error: %v", err)
 		}
 	}
 	return nil

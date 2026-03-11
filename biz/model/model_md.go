@@ -25,6 +25,7 @@ type Trade struct {
 	Direction      string  `parquet:"name=Direction, type=BYTE_ARRAY, convertedtype=UTF8"`
 	BuyOrderId     int64   `parquet:"name=BuyOrderId, type=INT64"`
 	SellOrderId    int64   `parquet:"name=SellOrderId, type=INT64"`
+	SeqNo          int64   `parquet:"name=SeqNo, type=INT64"`
 	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
 }
 
@@ -36,6 +37,7 @@ type Order struct {
 	Direction      string  `parquet:"name=Direction, type=BYTE_ARRAY, convertedtype=UTF8"`  // "buy"/"sell"/"unknown"
 	Price          float64 `parquet:"name=Price, type=DOUBLE"`
 	Volume         int64   `parquet:"name=Volume, type=INT64"`
+	SeqNo          int64   `parquet:"name=SeqNo, type=INT64"`
 	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
 }
 
@@ -47,6 +49,7 @@ type OrderQueue struct {
 	Volume         int64   `parquet:"name=Volume, type=INT64"`
 	NumOrders      int64   `parquet:"name=NumOrders, type=INT64"`
 	OrderQtyList   []int64 `parquet:"name=OrderQtyList, type=MAP, convertedtype=LIST, valuetype=INT64"`
+	SeqNo          int64   `parquet:"name=SeqNo, type=INT64"`
 	LocalTimestamp int64   `parquet:"name=LocalTimestamp, type=INT64"`
 }
 
@@ -68,10 +71,13 @@ type Snapshot struct {
 	HighLimit float64 `parquet:"name=HighLimit, type=DOUBLE"`
 	LowLimit  float64 `parquet:"name=LowLimit, type=DOUBLE"`
 
+	Status string `parquet:"name=Status, type=BYTE_ARRAY, convertedtype=UTF8"` // 沪:InstruStatus, 深:TradingPhaseCode
+
 	BidVolumeList []int64   `parquet:"name=BidVolumeList, type=MAP, convertedtype=LIST, valuetype=INT64"`
 	BidPriceList  []float64 `parquet:"name=BidPriceList, type=MAP, convertedtype=LIST, valuetype=DOUBLE"`
 	AskVolumeList []int64   `parquet:"name=AskVolumeList, type=MAP, convertedtype=LIST, valuetype=INT64"`
 	AskPriceList  []float64 `parquet:"name=AskPriceList, type=MAP, convertedtype=LIST, valuetype=DOUBLE"`
 
+	SeqNo          int64 `parquet:"name=SeqNo, type=INT64"`
 	LocalTimestamp int64 `parquet:"name=LocalTimestamp, type=INT64"`
 }

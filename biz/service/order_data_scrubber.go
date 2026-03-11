@@ -48,6 +48,7 @@ func ShRawTrade2Order(date string, v *model.ShRawTrade) (*model.Order, error) {
 		Direction:      direction,
 		Price:          v.Price,
 		Volume:         v.Qty,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -102,6 +103,7 @@ func OldShRawOrder2Order(date string, v *model.OldShRawOrder) (*model.Order, err
 		Direction:      direction,
 		Price:          v.OrderPrice,
 		Volume:         int64(v.Balance),
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -156,6 +158,7 @@ func SzRawOrder2Order(date string, v *model.SzRawOrder) (*model.Order, error) {
 		Direction:      direction,
 		Price:          v.Price,
 		Volume:         v.OrderQty,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -217,6 +220,7 @@ func SzRawTrade2CancelOrder(date string, v *model.SzRawTrade) (*model.Order, err
 		Direction:      direction,
 		Price:          v.LastPx,
 		Volume:         v.LastQty,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -241,7 +245,11 @@ func SzRawTrade2CancelOrderList(date string, rawList []*model.SzRawTrade) ([]*mo
 // ==== 合并 order
 
 func MergeRawOrder(srcDir string, dstDir string, date string) error {
-	dstDir = filepath.Join(dstDir, constdef.DataTypeOrder, date)
+	if config.Cfg.IsPerDay() {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeOrder)
+	} else {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeOrder, date)
+	}
 
 	szFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_6_33_0.csv.zip", date))
 
@@ -328,14 +336,22 @@ func MergeRawOrder(srcDir string, dstDir string, date string) error {
 	orderList := SortOrderRaw(shOrderList, szOrderList)
 	logger.Info("Convert All Raw Order End")
 
-	orderMap := GetMapOrder(orderList)
+	// 根据 output_mode 选择写入方式
+	if config.Cfg.IsPerDay() {
+		logger.Info("Write AllOrder.parquet Begin")
+		if err := WriteAllOrderParquet(dstDir, date, orderList); err != nil {
+			return errorx.NewError("WriteAllOrderParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write AllOrder.parquet End")
+	} else {
+		orderMap := GetMapOrder(orderList)
 
-	// 写入
-	logger.Info("Write StockOrder.parquet Begin")
-	if err := WriteStockOrderParquet(dstDir, date, orderMap); err != nil {
-		return errorx.NewError("WriteStockOrderParquet(%s) date(%s) error: %v", dstDir, date, err)
+		logger.Info("Write StockOrder.parquet Begin")
+		if err := WriteStockOrderParquet(dstDir, date, orderMap); err != nil {
+			return errorx.NewError("WriteStockOrderParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write StockOrder.parquet End")
 	}
-	logger.Info("Write StockOrder.parquet End")
 
 	return nil
 }
@@ -378,6 +394,36 @@ func GetMapOrder(orderList []*model.Order) map[string][]*model.Order {
 	}
 
 	return res
+}
+
+func WriteAllOrderParquet(dstDir string, date string, orderList []*model.Order) error {
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
+	}
+
+	filePath := filepath.Join(dstDir, fmt.Sprintf("%s_order.parquet", date))
+
+	pw, err := NewParquetWriter(filePath, new(model.Order))
+	if err != nil {
+		return errorx.NewError("NewParquetWriter error: %s", err)
+	}
+
+	defer func() {
+		if err := pw.Close(); err != nil {
+			logger.Error("关闭Parquet写入器时出错: %v", err)
+		}
+	}()
+
+	for _, order := range orderList {
+		if order == nil {
+			continue
+		}
+
+		if err := pw.Write(order); err != nil {
+			logger.Error("WriteAllOrderParquet error: %v", err)
+		}
+	}
+	return nil
 }
 
 func WriteStockOrderParquet(dstDir string, date string, mapOrder map[string][]*model.Order) error {

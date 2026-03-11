@@ -1,6 +1,7 @@
 package config
 
 import (
+	"data-scrubber/biz/constdef"
 	"encoding/json"
 	"os"
 
@@ -16,6 +17,18 @@ type Config struct {
 	DataTypeList []string `json:"data_type_list"`
 	DateSort     string   `json:"date_sort"`
 	Sort         bool     `json:"sort"`
+	OutputMode   string   `json:"output_mode"` // "per_stock"（默认，按票分文件）或 "per_day"（每天一个文件）
+}
+
+func (c *Config) GetOutputMode() string {
+	if c.OutputMode == "" {
+		return constdef.OutputModePerStock
+	}
+	return c.OutputMode
+}
+
+func (c *Config) IsPerDay() bool {
+	return c.GetOutputMode() == constdef.OutputModePerDay
 }
 
 var Cfg *Config

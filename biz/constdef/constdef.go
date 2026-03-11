@@ -18,3 +18,9 @@ const (
 	OrderTypeAdd    = "add"    // 新增委托
 	OrderTypeCancel = "cancel" // 撤单
 )
+
+// 输出模式常量
+const (
+	OutputModePerStock = "per_stock" // 每天每个票一个文件
+	OutputModePerDay   = "per_day"   // 每天所有票一个文件
+)

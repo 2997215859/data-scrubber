@@ -49,6 +49,7 @@ func RawOrderQueue2OrderQueue(date string, v *model.RawOrderQueue, suffix string
 		Volume:         int64(v.Volume),
 		NumOrders:      int64(v.NumOrders),
 		OrderQtyList:   orderQtyList,
+		SeqNo:          v.SeqNo,
 		LocalTimestamp: localTimestamp,
 	}
 
@@ -109,6 +110,36 @@ func GetMapOrderQueue(list []*model.OrderQueue) map[string][]*model.OrderQueue {
 	return res
 }
 
+func WriteAllOrderQueueParquet(dstDir string, date string, oqList []*model.OrderQueue) error {
+	if err := os.MkdirAll(dstDir, 0755); err != nil {
+		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
+	}
+
+	filePath := filepath.Join(dstDir, fmt.Sprintf("%s_orderqueue.parquet", date))
+
+	pw, err := NewParquetWriter(filePath, new(model.OrderQueue))
+	if err != nil {
+		return errorx.NewError("NewParquetWriter error: %s", err)
+	}
+
+	defer func() {
+		if err := pw.Close(); err != nil {
+			logger.Error("关闭Parquet写入器时出错: %v", err)
+		}
+	}()
+
+	for _, oq := range oqList {
+		if oq == nil {
+			continue
+		}
+
+		if err := pw.Write(oq); err != nil {
+			logger.Error("WriteAllOrderQueueParquet error: %v", err)
+		}
+	}
+	return nil
+}
+
 func WriteStockOrderQueueParquet(dstDir string, date string, mapOQ map[string][]*model.OrderQueue) error {
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return errorx.NewError("MkdirAll(%s) error: %v", dstDir, err)
@@ -143,7 +174,11 @@ func WriteStockOrderQueueParquet(dstDir string, date string, mapOQ map[string][]
 
 // MergeRawOrderQueue 委托队列清洗主入口
 func MergeRawOrderQueue(srcDir string, dstDir string, date string) error {
-	dstDir = filepath.Join(dstDir, constdef.DataTypeOrderQueue, date)
+	if config.Cfg.IsPerDay() {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeOrderQueue)
+	} else {
+		dstDir = filepath.Join(dstDir, constdef.DataTypeOrderQueue, date)
+	}
 
 	// 沪市：OrderQueue.csv.zip
 	shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_OrderQueue.csv.zip", date))
@@ -200,15 +235,23 @@ func MergeRawOrderQueue(srcDir string, dstDir string, date string) error {
 	oqList := SortOrderQueueRaw(shList, szList)
 	logger.Info("Sort OrderQueue End, count=%d", len(oqList))
 
-	// 按 InstrumentId 分组
-	oqMap := GetMapOrderQueue(oqList)
+	// 根据 output_mode 选择写入方式
+	if config.Cfg.IsPerDay() {
+		logger.Info("Write AllOrderQueue.parquet Begin")
+		if err := WriteAllOrderQueueParquet(dstDir, date, oqList); err != nil {
+			return errorx.NewError("WriteAllOrderQueueParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write AllOrderQueue.parquet End")
+	} else {
+		// 按 InstrumentId 分组
+		oqMap := GetMapOrderQueue(oqList)
 
-	// 写入 Parquet
-	logger.Info("Write StockOrderQueue.parquet Begin")
-	if err := WriteStockOrderQueueParquet(dstDir, date, oqMap); err != nil {
-		return errorx.NewError("WriteStockOrderQueueParquet(%s) date(%s) error: %v", dstDir, date, err)
+		logger.Info("Write StockOrderQueue.parquet Begin")
+		if err := WriteStockOrderQueueParquet(dstDir, date, oqMap); err != nil {
+			return errorx.NewError("WriteStockOrderQueueParquet(%s) date(%s) error: %v", dstDir, date, err)
+		}
+		logger.Info("Write StockOrderQueue.parquet End")
 	}
-	logger.Info("Write StockOrderQueue.parquet End")
 
 	return nil
 }
