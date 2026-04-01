@@ -22,9 +22,10 @@ mkdir -p "$(dirname "$CONFIG_FILE")"
 cat << EOF > "$CONFIG_FILE"
 {
   "src_dir": "$SRC_DIR",
-  "dst_dir": "/mnt/share/clean_stock_data",
+  "dst_dir": "/mnt/cephfs/md/md_stock",
   "date_start": "$DATE_PARAM",
   "date_end": "$DATE_PARAM",
+  "output_mode": "per_day",
   "data_type_list": [ "snapshot", "trade", "order", "orderqueue" ]
 }
 EOF
