@@ -272,6 +272,7 @@ func SzRawTrade2TradeList(date string, rawList []*model.SzRawTrade) ([]*model.Tr
 
 var shNewTradeStartDay = carbon.Parse("20231204").StartOfDay()
 var shBizIndexStartDay = carbon.Parse("20210426").StartOfDay()
+var shOrderStartDay = carbon.Parse("20210607").StartOfDay()
 
 func MergeRawTrade(srcDir string, dstDir string, date string) error {
 	if config.Cfg.IsPerDay() {

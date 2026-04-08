@@ -259,45 +259,42 @@ func MergeRawOrder(srcDir string, dstDir string, date string) error {
 		return errorx.NewError("date(%s) is invalid", date)
 	}
 
-	shOrderList, err := func() ([]*model.Order, error) {
-		if currentDate.Lt(shNewTradeStartDay) {
-			// 旧格式：独立的逐笔委托文件 mdl_4_19_0
-			shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_19_0.csv.zip", date))
+	// 沪市逐笔委托数据从 20210607 起才有，此前跳过沪市部分
+	var shOrderList []*model.Order
+	if currentDate.Lt(shOrderStartDay) {
+		logger.Info("Skip Sh Order: date(%s) < 20210607, no data available", date)
+	} else if currentDate.Lt(shNewTradeStartDay) {
+		// 旧格式：独立的逐笔委托文件 mdl_4_19_0
+		shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_19_0.csv.zip", date))
 
-			logger.Info("Read Old Sh Raw Order Begin")
-			oldShRawOrderList, err := ManualReadOldShRawOrder(shFilepath)
-			if err != nil {
-				return nil, errorx.NewError("ManualReadOldShRawOrder(%s) error: %s", shFilepath, err)
-			}
-			logger.Info("Read Old Sh Raw Order End")
-
-			shOrderList, err := OldShRawOrder2OrderList(date, oldShRawOrderList)
-			if err != nil {
-				return nil, errorx.NewError("OldShRawOrder2OrderList(%s) error: %s", shFilepath, err)
-			}
-			logger.Info("Convert Old Sh Raw Order End")
-			return shOrderList, nil
-		} else {
-			// 新格式：与逐笔成交共用文件 mdl_4_24_0，通过 Type 字段区分
-			shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
-
-			logger.Info("Read Sh Raw Order Begin (from mdl_4_24_0)")
-			shRawTradeList, err := ManualReadShRawTrade(shFilepath)
-			if err != nil {
-				return nil, errorx.NewError("ManualReadShRawTrade(%s) error: %s", shFilepath, err)
-			}
-			logger.Info("Read Sh Raw Order End")
-
-			shOrderList, err := ShRawTrade2OrderList(date, shRawTradeList)
-			if err != nil {
-				return nil, errorx.NewError("ShRawTrade2OrderList(%s) error: %s", shFilepath, err)
-			}
-			logger.Info("Convert Sh Raw Order End")
-			return shOrderList, nil
+		logger.Info("Read Old Sh Raw Order Begin")
+		oldShRawOrderList, err := ManualReadOldShRawOrder(shFilepath)
+		if err != nil {
+			return errorx.NewError("ManualReadOldShRawOrder(%s) error: %s", shFilepath, err)
 		}
-	}()
-	if err != nil {
-		return err
+		logger.Info("Read Old Sh Raw Order End")
+
+		shOrderList, err = OldShRawOrder2OrderList(date, oldShRawOrderList)
+		if err != nil {
+			return errorx.NewError("OldShRawOrder2OrderList(%s) error: %s", shFilepath, err)
+		}
+		logger.Info("Convert Old Sh Raw Order End")
+	} else {
+		// 新格式：与逐笔成交共用文件 mdl_4_24_0，通过 Type 字段区分
+		shFilepath := filepath.Join(srcDir, date, fmt.Sprintf("%s_mdl_4_24_0.csv.zip", date))
+
+		logger.Info("Read Sh Raw Order Begin (from mdl_4_24_0)")
+		shRawTradeList, err := ManualReadShRawTrade(shFilepath)
+		if err != nil {
+			return errorx.NewError("ManualReadShRawTrade(%s) error: %s", shFilepath, err)
+		}
+		logger.Info("Read Sh Raw Order End")
+
+		shOrderList, err = ShRawTrade2OrderList(date, shRawTradeList)
+		if err != nil {
+			return errorx.NewError("ShRawTrade2OrderList(%s) error: %s", shFilepath, err)
+		}
+		logger.Info("Convert Sh Raw Order End")
 	}
 
 	// 读取和处理深圳委托数据（mdl_6_33_0，仅包含新增委托）
