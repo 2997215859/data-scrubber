@@ -22,7 +22,7 @@ func RawOrderQueue2OrderQueue(date string, v *model.RawOrderQueue, suffix string
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.Timestamp, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -42,15 +42,15 @@ func RawOrderQueue2OrderQueue(date string, v *model.RawOrderQueue, suffix string
 	}
 
 	res := &model.OrderQueue{
-		InstrumentId:   fmt.Sprintf("%s.%s", v.SecurityID, suffix),
+		InstrumentId:    fmt.Sprintf("%s.%s", v.SecurityID, suffix),
 		UpdateTimestamp: timestamp,
-		Direction:      direction,
-		Price:          v.Price,
-		Volume:         int64(v.Volume),
-		NumOrders:      int64(v.NumOrders),
-		OrderQtyList:   orderQtyList,
-		SeqNo:          v.SeqNo,
-		LocalTimestamp: localTimestamp,
+		Direction:       direction,
+		Price:           v.Price,
+		Volume:          int64(v.Volume),
+		NumOrders:       int64(v.NumOrders),
+		OrderQtyList:    orderQtyList,
+		SeqNo:           v.SeqNo,
+		LocalTimestamp:  localTimestamp,
 	}
 
 	return res, nil
@@ -75,10 +75,10 @@ func RawOrderQueue2OrderQueueList(date string, rawList []*model.RawOrderQueue, s
 func SortOrderQueueRaw(a []*model.OrderQueue, b []*model.OrderQueue) []*model.OrderQueue {
 	if config.Cfg.Sort {
 		sort.SliceStable(a, func(i, j int) bool {
-			return a[i].LocalTimestamp < a[j].LocalTimestamp
+			return orderQueueSortTimestamp(a[i]) < orderQueueSortTimestamp(a[j])
 		})
 		sort.SliceStable(b, func(i, j int) bool {
-			return b[i].LocalTimestamp < b[j].LocalTimestamp
+			return orderQueueSortTimestamp(b[i]) < orderQueueSortTimestamp(b[j])
 		})
 	}
 
@@ -87,7 +87,7 @@ func SortOrderQueueRaw(a []*model.OrderQueue, b []*model.OrderQueue) []*model.Or
 	i, j := 0, 0
 
 	for i < len(a) && j < len(b) {
-		if a[i].LocalTimestamp < b[j].LocalTimestamp {
+		if orderQueueSortTimestamp(a[i]) < orderQueueSortTimestamp(b[j]) {
 			result = append(result, a[i])
 			i++
 		} else {
@@ -100,6 +100,13 @@ func SortOrderQueueRaw(a []*model.OrderQueue, b []*model.OrderQueue) []*model.Or
 	result = append(result, b[j:]...)
 
 	return result
+}
+
+func orderQueueSortTimestamp(v *model.OrderQueue) int64 {
+	if v.LocalTimestamp != 0 {
+		return v.LocalTimestamp
+	}
+	return v.UpdateTimestamp
 }
 
 func GetMapOrderQueue(list []*model.OrderQueue) map[string][]*model.OrderQueue {

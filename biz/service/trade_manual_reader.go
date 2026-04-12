@@ -66,7 +66,7 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 	requiredHeaders := []string{
 		"ChannelNo", "ApplSeqNum", "MDStreamID", "BidApplSeqNum",
 		"OfferApplSeqNum", "SecurityID", "SecurityIDSource",
-		"LastPx", "LastQty", "ExecType", "TransactTime", "LocalTime", "SeqNo",
+		"LastPx", "LastQty", "ExecType", "TransactTime",
 	}
 
 	for _, header := range requiredHeaders {
@@ -93,7 +93,7 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 		fields := splitLine(strings.TrimSpace(line))
 
 		// 确保每行有足够的字段
-		if len(fields) < len(requiredHeaders) {
+		if !hasRequiredFields(fields, headerIndex, requiredHeaders) {
 			log.Printf("警告: 第 %d 行字段数量不足，跳过该行", lineNum)
 			lineNum++
 			continue
@@ -115,7 +115,7 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 			continue
 		}
 
-		trade.MDStreamID = strings.TrimSpace(fields[headerIndex["MDStreamID"]])
+		trade.MDStreamID = getOptionalFieldValue(fields, headerIndex, "MDStreamID")
 
 		if err := parseInt64Field(fields, headerIndex, "BidApplSeqNum", &trade.BidApplSeqNum); err != nil {
 			logger.Error("警告: 第 %d 行 BidApplSeqNum 解析错误: %v，跳过该行", lineNum, err)
@@ -129,7 +129,7 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 			continue
 		}
 
-		trade.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
+		trade.SecurityID = getOptionalFieldValue(fields, headerIndex, "SecurityID")
 
 		if err := parseInt64Field(fields, headerIndex, "SecurityIDSource", &trade.SecurityIDSource); err != nil {
 			logger.Error("警告: 第 %d 行 SecurityIDSource 解析错误: %v，跳过该行", lineNum, err)
@@ -155,10 +155,10 @@ func ManualReadSzRawTrade(filepath string) ([]*model.SzRawTrade, error) {
 			continue
 		}
 
-		trade.TransactTime = strings.TrimSpace(fields[headerIndex["TransactTime"]])
-		trade.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+		trade.TransactTime = getOptionalFieldValue(fields, headerIndex, "TransactTime")
+		trade.LocalTime = getOptionalFieldValue(fields, headerIndex, "LocalTime")
 
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
+		if err := parseOptionalInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
 			logger.Error("警告: 第 %d 行 SeqNo 解析错误: %v，跳过该行", lineNum, err)
 			lineNum++
 			continue
@@ -436,7 +436,7 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 	requiredHeaders := []string{
 		"BizIndex", "Channel", "SecurityID", "TickTime", "Type",
 		"BuyOrderNO", "SellOrderNO", "Price", "Qty", "TradeMoney",
-		"TickBSFlag", "LocalTime", "SeqNo",
+		"TickBSFlag",
 	}
 
 	// 验证必填标题是否存在
@@ -464,8 +464,8 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 		fields := splitLine(strings.TrimSpace(line))
 
 		// 检查字段数量是否足够
-		if len(fields) < len(requiredHeaders) {
-			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过. 错误行内容=%s", lineNum, len(fields), len(requiredHeaders), line)
+		if !hasRequiredFields(fields, headerIndex, requiredHeaders) {
+			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过. 错误行内容=%s", lineNum, len(fields), requiredFieldCount(headerIndex, requiredHeaders), line)
 			lineNum++
 			continue
 		}
@@ -486,9 +486,9 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 			continue
 		}
 
-		trade.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
-		trade.TickTime = strings.TrimSpace(fields[headerIndex["TickTime"]])
-		trade.Type = strings.TrimSpace(fields[headerIndex["Type"]])
+		trade.SecurityID = getOptionalFieldValue(fields, headerIndex, "SecurityID")
+		trade.TickTime = getOptionalFieldValue(fields, headerIndex, "TickTime")
+		trade.Type = getOptionalFieldValue(fields, headerIndex, "Type")
 
 		if err := parseInt64Field(fields, headerIndex, "BuyOrderNO", &trade.BuyOrderNo); err != nil {
 			logger.Error("警告: 第 %d 行 BuyOrderNO 解析错误: %v，跳过", lineNum, err)
@@ -520,10 +520,10 @@ func ManualReadShRawTrade(filepath string) ([]*model.ShRawTrade, error) {
 			continue
 		}
 
-		trade.TickBSFlag = strings.TrimSpace(fields[headerIndex["TickBSFlag"]])
-		trade.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+		trade.TickBSFlag = getOptionalFieldValue(fields, headerIndex, "TickBSFlag")
+		trade.LocalTime = getOptionalFieldValue(fields, headerIndex, "LocalTime")
 
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
+		if err := parseOptionalInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
 			logger.Error("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
 			lineNum++
 			continue
@@ -583,13 +583,13 @@ func ManualReadOldShRawTrade(filepath string, date *carbon.Carbon) ([]*model.Old
 		requiredHeaders = []string{
 			"DataStatus", "TradeIndex", "TradeChan", "SecurityID", "TradTime",
 			"TradPrice", "TradVolume", "TradeMoney", "TradeBuyNo", "TradeSellNo",
-			"TradeBSFlag", "LocalTime", "SeqNo",
+			"TradeBSFlag",
 		}
 	} else {
 		requiredHeaders = []string{
 			"DataStatus", "TradeIndex", "TradeChan", "SecurityID", "TradTime",
 			"TradPrice", "TradVolume", "TradeMoney", "TradeBuyNo", "TradeSellNo",
-			"TradeBSFlag", "BizIndex", "LocalTime", "SeqNo",
+			"TradeBSFlag", "BizIndex",
 		}
 	}
 
@@ -618,8 +618,8 @@ func ManualReadOldShRawTrade(filepath string, date *carbon.Carbon) ([]*model.Old
 		fields := splitLine(strings.TrimSpace(line))
 
 		// 检查字段数量是否足够
-		if len(fields) < len(requiredHeaders) {
-			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过. 错误行内容=%s", lineNum, len(fields), len(requiredHeaders), line)
+		if !hasRequiredFields(fields, headerIndex, requiredHeaders) {
+			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过. 错误行内容=%s", lineNum, len(fields), requiredFieldCount(headerIndex, requiredHeaders), line)
 			lineNum++
 			continue
 		}
@@ -644,8 +644,8 @@ func ManualReadOldShRawTrade(filepath string, date *carbon.Carbon) ([]*model.Old
 			continue
 		}
 
-		trade.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
-		trade.TradTime = strings.TrimSpace(fields[headerIndex["TradTime"]])
+		trade.SecurityID = getOptionalFieldValue(fields, headerIndex, "SecurityID")
+		trade.TradTime = getOptionalFieldValue(fields, headerIndex, "TradTime")
 
 		if err := parseFloat64Field(fields, headerIndex, "TradPrice", &trade.TradPrice); err != nil {
 			logger.Info("警告: 第 %d 行 TradPrice 解析错误: %v，跳过", lineNum, err)
@@ -682,10 +682,10 @@ func ManualReadOldShRawTrade(filepath string, date *carbon.Carbon) ([]*model.Old
 			}
 		}
 
-		trade.TradeBSFlag = strings.TrimSpace(fields[headerIndex["TradeBSFlag"]])
-		trade.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+		trade.TradeBSFlag = getOptionalFieldValue(fields, headerIndex, "TradeBSFlag")
+		trade.LocalTime = getOptionalFieldValue(fields, headerIndex, "LocalTime")
 
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
+		if err := parseOptionalInt64Field(fields, headerIndex, "SeqNo", &trade.SeqNo); err != nil {
 			logger.Error("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
 			lineNum++
 			continue

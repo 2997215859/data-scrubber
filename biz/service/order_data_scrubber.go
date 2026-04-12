@@ -28,7 +28,7 @@ func ShRawTrade2Order(date string, v *model.ShRawTrade) (*model.Order, error) {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TickTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -83,7 +83,7 @@ func OldShRawOrder2Order(date string, v *model.OldShRawOrder) (*model.Order, err
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.OrderTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -143,7 +143,7 @@ func SzRawOrder2Order(date string, v *model.SzRawOrder) (*model.Order, error) {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TransactTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -195,7 +195,7 @@ func SzRawTrade2CancelOrder(date string, v *model.SzRawTrade) (*model.Order, err
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TransactTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -356,10 +356,10 @@ func MergeRawOrder(srcDir string, dstDir string, date string) error {
 func SortOrderRaw(a []*model.Order, b []*model.Order) []*model.Order {
 	if config.Cfg.Sort {
 		sort.SliceStable(a, func(i, j int) bool {
-			return a[i].LocalTimestamp < a[j].LocalTimestamp
+			return orderSortTimestamp(a[i]) < orderSortTimestamp(a[j])
 		})
 		sort.SliceStable(b, func(i, j int) bool {
-			return b[i].LocalTimestamp < b[j].LocalTimestamp
+			return orderSortTimestamp(b[i]) < orderSortTimestamp(b[j])
 		})
 	}
 
@@ -368,7 +368,7 @@ func SortOrderRaw(a []*model.Order, b []*model.Order) []*model.Order {
 	i, j := 0, 0
 
 	for i < len(a) && j < len(b) {
-		if a[i].LocalTimestamp < b[j].LocalTimestamp {
+		if orderSortTimestamp(a[i]) < orderSortTimestamp(b[j]) {
 			result = append(result, a[i])
 			i++
 		} else {
@@ -381,6 +381,13 @@ func SortOrderRaw(a []*model.Order, b []*model.Order) []*model.Order {
 	result = append(result, b[j:]...)
 
 	return result
+}
+
+func orderSortTimestamp(v *model.Order) int64 {
+	if v.LocalTimestamp != 0 {
+		return v.LocalTimestamp
+	}
+	return v.OrderTimestamp
 }
 
 func GetMapOrder(orderList []*model.Order) map[string][]*model.Order {

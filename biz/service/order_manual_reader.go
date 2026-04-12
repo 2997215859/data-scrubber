@@ -51,7 +51,6 @@ func ManualReadOldShRawOrder(filepath string) ([]*model.OldShRawOrder, error) {
 	requiredHeaders := []string{
 		"DataStatus", "OrderIndex", "OrderChannel", "SecurityID", "OrderTime",
 		"OrderType", "OrderNO", "OrderPrice", "Balance", "OrderBSFlag",
-		"LocalTime", "SeqNo",
 	}
 
 	for _, header := range requiredHeaders {
@@ -77,8 +76,8 @@ func ManualReadOldShRawOrder(filepath string) ([]*model.OldShRawOrder, error) {
 
 		fields := splitLine(strings.TrimSpace(line))
 
-		if len(fields) < len(requiredHeaders) {
-			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), len(requiredHeaders))
+		if !hasRequiredFields(fields, headerIndex, requiredHeaders) {
+			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), requiredFieldCount(headerIndex, requiredHeaders))
 			lineNum++
 			continue
 		}
@@ -103,9 +102,9 @@ func ManualReadOldShRawOrder(filepath string) ([]*model.OldShRawOrder, error) {
 			continue
 		}
 
-		order.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
-		order.OrderTime = strings.TrimSpace(fields[headerIndex["OrderTime"]])
-		order.OrderType = strings.TrimSpace(fields[headerIndex["OrderType"]])
+		order.SecurityID = getOptionalFieldValue(fields, headerIndex, "SecurityID")
+		order.OrderTime = getOptionalFieldValue(fields, headerIndex, "OrderTime")
+		order.OrderType = getOptionalFieldValue(fields, headerIndex, "OrderType")
 
 		if err := parseInt64Field(fields, headerIndex, "OrderNO", &order.OrderNO); err != nil {
 			logger.Error("警告: 第 %d 行 OrderNO 解析错误: %v，跳过", lineNum, err)
@@ -125,7 +124,7 @@ func ManualReadOldShRawOrder(filepath string) ([]*model.OldShRawOrder, error) {
 			continue
 		}
 
-		order.OrderBSFlag = strings.TrimSpace(fields[headerIndex["OrderBSFlag"]])
+		order.OrderBSFlag = getOptionalFieldValue(fields, headerIndex, "OrderBSFlag")
 
 		if hasBizIndex {
 			if err := parseInt64Field(fields, headerIndex, "BizIndex", &order.BizIndex); err != nil {
@@ -135,9 +134,9 @@ func ManualReadOldShRawOrder(filepath string) ([]*model.OldShRawOrder, error) {
 			}
 		}
 
-		order.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+		order.LocalTime = getOptionalFieldValue(fields, headerIndex, "LocalTime")
 
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &order.SeqNo); err != nil {
+		if err := parseOptionalInt64Field(fields, headerIndex, "SeqNo", &order.SeqNo); err != nil {
 			logger.Error("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
 			lineNum++
 			continue
@@ -188,7 +187,6 @@ func ManualReadSzRawOrder(filepath string) ([]*model.SzRawOrder, error) {
 	requiredHeaders := []string{
 		"ChannelNo", "ApplSeqNum", "MDStreamID", "SecurityID", "SecurityIDSource",
 		"Price", "OrderQty", "Side", "TransactTime", "OrdType",
-		"LocalTime", "SeqNo",
 	}
 
 	for _, header := range requiredHeaders {
@@ -211,8 +209,8 @@ func ManualReadSzRawOrder(filepath string) ([]*model.SzRawOrder, error) {
 
 		fields := splitLine(strings.TrimSpace(line))
 
-		if len(fields) < len(requiredHeaders) {
-			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), len(requiredHeaders))
+		if !hasRequiredFields(fields, headerIndex, requiredHeaders) {
+			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), requiredFieldCount(headerIndex, requiredHeaders))
 			lineNum++
 			continue
 		}
@@ -231,8 +229,8 @@ func ManualReadSzRawOrder(filepath string) ([]*model.SzRawOrder, error) {
 			continue
 		}
 
-		order.MDStreamID = strings.TrimSpace(fields[headerIndex["MDStreamID"]])
-		order.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
+		order.MDStreamID = getOptionalFieldValue(fields, headerIndex, "MDStreamID")
+		order.SecurityID = getOptionalFieldValue(fields, headerIndex, "SecurityID")
 
 		if err := parseInt64Field(fields, headerIndex, "SecurityIDSource", &order.SecurityIDSource); err != nil {
 			logger.Error("警告: 第 %d 行 SecurityIDSource 解析错误: %v，跳过", lineNum, err)
@@ -258,7 +256,7 @@ func ManualReadSzRawOrder(filepath string) ([]*model.SzRawOrder, error) {
 			continue
 		}
 
-		order.TransactTime = strings.TrimSpace(fields[headerIndex["TransactTime"]])
+		order.TransactTime = getOptionalFieldValue(fields, headerIndex, "TransactTime")
 
 		if err := parseIntField(fields, headerIndex, "OrdType", &order.OrdType); err != nil {
 			logger.Error("警告: 第 %d 行 OrdType 解析错误: %v，跳过", lineNum, err)
@@ -266,9 +264,9 @@ func ManualReadSzRawOrder(filepath string) ([]*model.SzRawOrder, error) {
 			continue
 		}
 
-		order.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+		order.LocalTime = getOptionalFieldValue(fields, headerIndex, "LocalTime")
 
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &order.SeqNo); err != nil {
+		if err := parseOptionalInt64Field(fields, headerIndex, "SeqNo", &order.SeqNo); err != nil {
 			logger.Error("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
 			lineNum++
 			continue

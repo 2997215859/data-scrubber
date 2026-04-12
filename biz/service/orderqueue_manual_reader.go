@@ -15,8 +15,8 @@ import (
 
 // parseIntFieldOptional 解析 int 字段，空值时默认为 0
 func parseIntFieldOptional(fields []string, headerIndex map[string]int, fieldName string, target *int) {
-	valueStr := strings.TrimSpace(fields[headerIndex[fieldName]])
-	if valueStr == "" {
+	valueStr, err := getFieldValue(fields, headerIndex, fieldName)
+	if err != nil || valueStr == "" {
 		*target = 0
 		return
 	}
@@ -30,8 +30,8 @@ func parseIntFieldOptional(fields []string, headerIndex map[string]int, fieldNam
 
 // parseFloat64FieldOptional 解析 float64 字段，空值时默认为 0
 func parseFloat64FieldOptional(fields []string, headerIndex map[string]int, fieldName string, target *float64) {
-	valueStr := strings.TrimSpace(fields[headerIndex[fieldName]])
-	if valueStr == "" {
+	valueStr, err := getFieldValue(fields, headerIndex, fieldName)
+	if err != nil || valueStr == "" {
 		*target = 0
 		return
 	}
@@ -90,7 +90,7 @@ func ManualReadOrderQueue(filepath string, market string) ([]*model.RawOrderQueu
 	requiredHeaders := []string{
 		timeColumn, "SecurityID", "ImageStatus", "Side",
 		"NoPriceLevel", "PrcLvlOperator", "Price", "Volume",
-		"NumOrders", "NoOrders", "LocalTime", "SeqNo",
+		"NumOrders", "NoOrders",
 	}
 
 	for _, header := range requiredHeaders {
@@ -118,8 +118,8 @@ func ManualReadOrderQueue(filepath string, market string) ([]*model.RawOrderQueu
 
 		fields := splitLine(strings.TrimSpace(line))
 
-		if len(fields) < len(requiredHeaders) {
-			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), len(requiredHeaders))
+		if !hasRequiredFields(fields, headerIndex, requiredHeaders) {
+			logger.Info("警告: 第 %d 行字段数量不足（%d/%d），跳过", lineNum, len(fields), requiredFieldCount(headerIndex, requiredHeaders))
 			lineNum++
 			continue
 		}
@@ -127,8 +127,8 @@ func ManualReadOrderQueue(filepath string, market string) ([]*model.RawOrderQueu
 		oq := &model.RawOrderQueue{}
 
 		// 时间列
-		oq.Timestamp = strings.TrimSpace(fields[headerIndex[timeColumn]])
-		oq.SecurityID = strings.TrimSpace(fields[headerIndex["SecurityID"]])
+		oq.Timestamp = getOptionalFieldValue(fields, headerIndex, timeColumn)
+		oq.SecurityID = getOptionalFieldValue(fields, headerIndex, "SecurityID")
 
 		if err := parseIntField(fields, headerIndex, "ImageStatus", &oq.ImageStatus); err != nil {
 			logger.Info("警告: 第 %d 行 ImageStatus 解析错误: %v，跳过", lineNum, err)
@@ -136,7 +136,7 @@ func ManualReadOrderQueue(filepath string, market string) ([]*model.RawOrderQueu
 			continue
 		}
 
-		oq.Side = strings.TrimSpace(fields[headerIndex["Side"]])
+		oq.Side = getOptionalFieldValue(fields, headerIndex, "Side")
 
 		parseIntFieldOptional(fields, headerIndex, "NoPriceLevel", &oq.NoPriceLevel)
 		parseIntFieldOptional(fields, headerIndex, "PrcLvlOperator", &oq.PrcLvlOperator)
@@ -168,9 +168,9 @@ func ManualReadOrderQueue(filepath string, market string) ([]*model.RawOrderQueu
 		}
 		oq.OrderQtyList = orderQtyList
 
-		oq.LocalTime = strings.TrimSpace(fields[headerIndex["LocalTime"]])
+		oq.LocalTime = getOptionalFieldValue(fields, headerIndex, "LocalTime")
 
-		if err := parseInt64Field(fields, headerIndex, "SeqNo", &oq.SeqNo); err != nil {
+		if err := parseOptionalInt64Field(fields, headerIndex, "SeqNo", &oq.SeqNo); err != nil {
 			logger.Info("警告: 第 %d 行 SeqNo 解析错误: %v，跳过", lineNum, err)
 			lineNum++
 			continue

@@ -74,7 +74,7 @@ func ShRawTrade2Trade(date string, v *model.ShRawTrade) (*model.Trade, error) {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TickTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -106,7 +106,7 @@ func OldShRawTrade2Trade(date string, v *model.OldShRawTrade) (*model.Trade, err
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TradTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -225,7 +225,7 @@ func SzRawTrade2Trade(date string, v *model.SzRawTrade) (*model.Trade, error) {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.TransactTime, err)
 	}
 
-	localTimestamp, err := utils.TimeToNano(date, v.LocalTime)
+	localTimestamp, err := timeToNanoOrZero(date, v.LocalTime)
 	if err != nil {
 		return nil, errorx.NewError("timeToNano(%s %s) error: %v", date, v.LocalTime, err)
 	}
@@ -373,10 +373,10 @@ func SortTradeRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
 	// 分别对 a 和 b 排序
 	if config.Cfg.Sort {
 		sort.SliceStable(a, func(i, j int) bool {
-			return a[i].LocalTimestamp < a[j].LocalTimestamp
+			return tradeSortTimestamp(a[i]) < tradeSortTimestamp(a[j])
 		})
 		sort.SliceStable(b, func(i, j int) bool {
-			return b[i].LocalTimestamp < b[j].LocalTimestamp
+			return tradeSortTimestamp(b[i]) < tradeSortTimestamp(b[j])
 		})
 	}
 
@@ -385,7 +385,7 @@ func SortTradeRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
 	i, j := 0, 0
 
 	for i < len(a) && j < len(b) {
-		if a[i].LocalTimestamp < b[j].LocalTimestamp {
+		if tradeSortTimestamp(a[i]) < tradeSortTimestamp(b[j]) {
 			result = append(result, a[i])
 			i++
 		} else {
@@ -399,6 +399,13 @@ func SortTradeRaw(a []*model.Trade, b []*model.Trade) []*model.Trade {
 	result = append(result, b[j:]...)
 
 	return result
+}
+
+func tradeSortTimestamp(v *model.Trade) int64 {
+	if v.LocalTimestamp != 0 {
+		return v.LocalTimestamp
+	}
+	return v.TradeTimestamp
 }
 
 func GetMapTrade(tradeList []*model.Trade) map[string][]*model.Trade {
